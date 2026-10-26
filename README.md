@@ -12,27 +12,42 @@
 - [x] شاشة تحميل بعد الدخول فيها أنيميشن الشعار
 - [x] خلفية شاشة القفل وشاشة الدخول
 - [ ] شاشة الإقلاع (Plymouth)
+- [x] ثلاث صور: AMD/Intel وNVIDIA حديث وNVIDIA قديم
+- [x] أدوات المطوّر (Docker وVS Code وPodman) من Bazzite-DX
 - [ ] برامج Darksham (ترحيب، إعدادات)
 - [ ] Darksham Launcher
 - [ ] Darksham Engine مثبّت
 - [ ] Ofuq كخدمة محلية
 
+## الصور (اختار حسب كرت الشاشة)
+| الصورة | القاعدة | لمين |
+|---|---|---|
+| `ds-os` | Bazzite-DX | كروت AMD وIntel (وجهاز افتراضي) |
+| `ds-os-nvidia` | Bazzite-DX NVIDIA | **RTX وGTX 16 وما فوق** (تعريفات NVIDIA المفتوحة) |
+| `ds-os-nvidia-legacy` | Bazzite NVIDIA | GTX 10 وأقدم (بدون أدوات المطوّر) |
+
+نسخ DX فيها أدوات المطوّر: Docker وPodman وVS Code وDistrobox.
+نسخة الكروت القديمة بدون DX لأن Bazzite ما بيصدر نسخة DX إلها.
+
 ## كيف بينبني
-كل دفعة على فرع `main` بتبني الصورة تلقائياً بـGitHub Actions وبترفعها على:
-`ghcr.io/tamyyaz/ds-os:latest`
+كل دفعة على فرع `main` بتبني الصور الثلاث تلقائياً بـGitHub Actions وبترفعها على:
+`ghcr.io/tamyyaz/<اسم الصورة>:latest`
 
 ملفات مهمة:
-- `Containerfile`: صورة الأساس (عادي أو NVIDIA)
+- `Containerfile`: صورة الأساس بتجي كـ`BASE_IMAGE` من الـworkflow
+- `.github/workflows/build.yml`: جدول الصور الثلاث
 - `build_files/build.sh`: كل تعديلات النظام
 - `system_files/`: ملفات بتنسخ متل ما هي لجذر النظام `/`
 
 ## التجربة على جهاز افتراضي
 1. ثبّت Bazzite العادي على VirtualBox أو virt-manager (6 GB رام، 50 GB مساحة).
-2. بعد التثبيت:
+2. بعد التثبيت (غيّر الاسم حسب الكرت):
    ```bash
    sudo bootc switch ghcr.io/tamyyaz/ds-os:latest
    ```
 3. أعد التشغيل.
+
+> لازم تكون الحزمة عامة: GitHub ← Packages ← اسم الصورة ← Package settings ← Change visibility ← Public.
 
 ## التوقيع (اختياري هلق، ضروري قبل النشر)
 البناء بيشتغل بدون توقيع. لتفعيله:

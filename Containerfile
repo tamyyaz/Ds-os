@@ -1,13 +1,16 @@
+# صورة الأساس بتجي كـbuild-arg من GitHub Actions (انظر .github/workflows/build.yml):
+#   ds-os               ← bazzite-dx          (AMD / Intel + أدوات المطوّر)
+#   ds-os-nvidia        ← bazzite-dx-nvidia   (RTX وGTX 16 وما فوق، تعريفات NVIDIA المفتوحة)
+#   ds-os-nvidia-legacy ← bazzite-nvidia      (GTX 10 وأقدم، بدون أدوات المطوّر)
+ARG BASE_IMAGE="ghcr.io/ublue-os/bazzite-dx:stable"
+
 # Allow build scripts to be referenced without being copied into the final image
 FROM scratch AS ctx
 COPY build_files /
 COPY system_files /system_files
 
-# Base Image — Darksham OS مبني على Bazzite
-# للتجربة على جهاز افتراضي أو كروت AMD/Intel:
-FROM ghcr.io/ublue-os/bazzite:stable
-# لكروت NVIDIA من GTX 16 وكل RTX (متل RTX 2080) استبدل السطر الفوق بـ:
-# FROM ghcr.io/ublue-os/bazzite-nvidia-open:stable
+# Base Image
+FROM ${BASE_IMAGE}
 ## Other possible base images include:
 # FROM ghcr.io/ublue-os/bazzite:testing
 # FROM ghcr.io/ublue-os/aurora:stable

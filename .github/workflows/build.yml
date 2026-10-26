@@ -25,6 +25,20 @@ jobs:
     name: Build and push image
     runs-on: ubuntu-26.04
 
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image_name: ds-os
+            base_image: ghcr.io/ublue-os/bazzite-dx:stable
+          - image_name: ds-os-nvidia
+            base_image: ghcr.io/ublue-os/bazzite-dx-nvidia:stable
+          - image_name: ds-os-nvidia-legacy
+            base_image: ghcr.io/ublue-os/bazzite-nvidia:stable
+
+    env:
+      BASE_IMAGE: ${{ matrix.base_image }}
+
     permissions:
       contents: read
       packages: write
@@ -49,7 +63,7 @@ jobs:
       - name: Image Name
         id: image-name
         run: |
-          IMAGE_NAME=$(just image_name)
+          IMAGE_NAME="${{ matrix.image_name }}"
 
           echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
 

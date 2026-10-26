@@ -23,5 +23,5 @@ theme=Breeze
 [plasmarc][Theme]
 name=default
 
-[KSplash]
+[ksplashrc][KSplash]
 Theme=org.darksham.desktop
