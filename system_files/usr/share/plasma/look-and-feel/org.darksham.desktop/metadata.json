@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [{ "Name": "Darksham" }],
+        "Description": "Darksham OS default look",
+        "Description[ar]": "الشكل الافتراضي لنظام Darksham OS",
+        "Id": "org.darksham.desktop",
+        "License": "GPL-2.0-or-later",
+        "Name": "Darksham",
+        "Name[ar]": "دركشام",
+        "Version": "0.1"
+    },
+    "X-Plasma-APIVersion": "2"
+}

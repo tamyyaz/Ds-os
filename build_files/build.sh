@@ -30,5 +30,23 @@ else
     echo 'VARIANT="Darksham"' >> /usr/lib/os-release
 fi
 
-### 3) الخدمات
+### 3) الأيقونات: Fluent (رمادي) بشكل قريب من ويندوز 11
+# نسخة مثبّتة بتاريخ حتى ما يتغيّر النظام لحالو. الترخيص GPL-3.0
+FLUENT_TAG="2026-07-27"
+command -v git >/dev/null || dnf5 install -y git
+git clone --depth 1 --branch "${FLUENT_TAG}" \
+    https://github.com/vinceliuice/Fluent-icon-theme /tmp/fluent-icons
+bash /tmp/fluent-icons/install.sh -d /usr/share/icons grey
+rm -rf /tmp/fluent-icons
+# أيقونات Darksham (زر البدء وأيقونة النظام)
+gtk-update-icon-cache -f /usr/share/icons/hicolor || true
+
+### 4) شاشة تسجيل الدخول: خلفية Darksham
+for theme in /usr/share/sddm/themes/*breeze*; do
+    [ -d "${theme}" ] || continue
+    printf '[General]\nbackground=/usr/share/wallpapers/Darksham/contents/images/3840x2160.png\n' \
+        > "${theme}/theme.conf.user"
+done
+
+### 5) الخدمات
 systemctl enable podman.socket
