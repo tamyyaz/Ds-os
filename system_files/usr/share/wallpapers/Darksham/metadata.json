@@ -1,0 +1,13 @@
+{
+  "KPlugin": {
+    "Id": "Darksham",
+    "Name": "Darksham",
+    "Name[ar]": "دركشام",
+    "Authors": [
+      {
+        "Name": "Darksham"
+      }
+    ],
+    "License": "Proprietary"
+  }
+}
