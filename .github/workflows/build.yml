@@ -157,6 +157,11 @@ jobs:
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
           DIGEST: ${{ steps.push-image.outputs.digest }}
         run: |
+          # Darksham: التوقيع اختياري لحد ما ينضاف SIGNING_SECRET بإعدادات المستودع
+          if [ -z "${COSIGN_PRIVATE_KEY}" ]; then
+            echo "::warning::SIGNING_SECRET is not set; skipping image signing."
+            exit 0
+          fi
           # https://github.com/containers/container-libs/issues/388
           # https://github.com/coreos/rpm-ostree/issues/5509
           # use old bundle format, so we can use newer cosign 3.X.X instead of 2.X.X

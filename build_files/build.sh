@@ -1,27 +1,34 @@
 #!/bin/bash
+# Darksham OS — build.sh
+# كل تعديلات النظام بتصير هون. بيشتغل مرة وحدة وقت بناء الصورة.
 
 set -ouex pipefail
 
-# Copy the contents of system_files/ of the git repo to /
+### 0) ملفات النظام الجاهزة (system_files/ بالمستودع ← جذر النظام /)
+# فيها: إعدادات الخطوط العربية، ومجلد Darksham
 cp -avf "/ctx/system_files"/. /
 
-### Install packages
+### 1) العربي: لغة وخطوط
+dnf5 install -y \
+    glibc-langpack-ar \
+    google-noto-kufi-arabic-fonts \
+    google-noto-naskh-arabic-fonts \
+    google-noto-sans-arabic-fonts
 
-# Packages can be installed from any enabled yum repo on the image.
-# RPMfusion repos are available by default in ublue main images
-# List of rpmfusion packages can be found here:
-# https://mirrors.rpmfusion.org/mirrorlist?path=free/fedora/updates/43/x86_64/repoview/index.html&protocol=https&redirect=1
+# اللغة الافتراضية عربي (المستخدم بيقدر يغيّرها من الإعدادات أو وقت التثبيت)
+echo 'LANG=ar_SY.UTF-8' > /etc/locale.conf
 
-# this installs a package from fedora repos
-dnf5 install -y tmux
+# تحديث ذاكرة الخطوط حتى يلقط إعدادات الخطوط الجديدة
+fc-cache -f
 
-# Use a COPR Example:
-#
-# dnf5 -y copr enable ublue-os/staging
-# dnf5 -y install package
-# Disable COPRs so they don't end up enabled on the final image:
-# dnf5 -y copr disable ublue-os/staging
+### 2) الهوية: اسم النظام
+# منغيّر الاسم الظاهر بس، ومنخلّي ID متل ما هو حتى ما تخرب التحديثات وأدوات Bazzite
+sed -i 's/^PRETTY_NAME=.*/PRETTY_NAME="Darksham OS"/' /usr/lib/os-release
+if grep -q '^VARIANT=' /usr/lib/os-release; then
+    sed -i 's/^VARIANT=.*/VARIANT="Darksham"/' /usr/lib/os-release
+else
+    echo 'VARIANT="Darksham"' >> /usr/lib/os-release
+fi
 
-#### Example for enabling a System Unit File
-
+### 3) الخدمات
 systemctl enable podman.socket

@@ -3,8 +3,11 @@ FROM scratch AS ctx
 COPY build_files /
 COPY system_files /system_files
 
-# Base Image
+# Base Image — Darksham OS مبني على Bazzite
+# للتجربة على جهاز افتراضي أو كروت AMD/Intel:
 FROM ghcr.io/ublue-os/bazzite:stable
+# لكروت NVIDIA من GTX 16 وكل RTX (متل RTX 2080) استبدل السطر الفوق بـ:
+# FROM ghcr.io/ublue-os/bazzite-nvidia-open:stable
 ## Other possible base images include:
 # FROM ghcr.io/ublue-os/bazzite:testing
 # FROM ghcr.io/ublue-os/aurora:stable
