@@ -131,23 +131,37 @@ def scan(steam=None):
     return games
 
 
+def _open_uri(uri):
+    if sys.platform.startswith("win"):
+        os.startfile(uri)  # fixed steam:// URI built from digits only
+    else:
+        steam = shutil.which("steam")
+        if steam:
+            cmd = [steam, uri]
+        elif shutil.which("flatpak"):
+            cmd = ["flatpak", "run", "com.valvesoftware.Steam", uri]
+        else:
+            cmd = ["xdg-open", uri]
+        subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def open_store(appid):
+    """Show an app's store page in the Steam client (the user buys there). Digits only."""
+    if not str(appid).isdigit():
+        return False, "bad id"
+    try:
+        _open_uri("steam://store/" + str(appid))
+        return True, "opened"
+    except OSError as e:
+        return False, str(e)
+
+
 def launch(appid):
     """Ask Steam to start an installed game. Returns (ok, message). The id must be digits only."""
     if not appid.isdigit():
         return False, "bad id"
-    uri = "steam://rungameid/" + appid
     try:
-        if sys.platform.startswith("win"):
-            os.startfile(uri)  # fixed steam:// URI built from digits only
-        else:
-            steam = shutil.which("steam")
-            if steam:
-                cmd = [steam, uri]
-            elif shutil.which("flatpak"):
-                cmd = ["flatpak", "run", "com.valvesoftware.Steam", uri]
-            else:
-                cmd = ["xdg-open", uri]
-            subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        _open_uri("steam://rungameid/" + appid)
         return True, "started"
     except OSError as e:
         return False, str(e)

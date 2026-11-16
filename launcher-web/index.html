@@ -26,6 +26,7 @@
     <nav class="tabs" id="tabs">
       <span class="pill"></span>
       <button data-tab="games"></button>
+      <button data-tab="store"></button>
       <button data-tab="profile"></button>
       <button data-tab="apps"></button>
     </nav>
@@ -56,6 +57,11 @@
     </div>
   </main>
 
+  <!-- store: sub-tabs (shelves) and the "our own store is coming" note -->
+  <div class="shelves" id="shelves"></div>
+  <div class="store-note" id="store-note"></div>
+  <div class="store-msg glass" id="store-msg"><i class="spin"></i><p id="store-msg-text"></p><button class="chip" id="store-retry"></button></div>
+
   <!-- the row of cards -->
   <section class="row" id="row"></section>
 
@@ -74,6 +80,24 @@
     <h2 id="a-title"></h2>
     <p id="a-sub"></p>
     <div class="ghosts"><i></i><i></i><i></i><i></i><i></i></div>
+  </section>
+
+  <!-- store: game details -->
+  <section class="detail" id="detail">
+    <div class="sheet glass">
+      <div class="gallery"><div class="shots"><img id="shot-a" alt=""><img id="shot-b" alt=""></div><div class="thumbs" id="shot-thumbs"></div></div>
+      <div class="meta">
+        <h2 id="d-title"></h2>
+        <div class="chips" id="d-chips"></div>
+        <p id="d-desc"></p>
+        <dl id="d-facts"></dl>
+        <div class="buy">
+          <div class="price" id="d-price"></div>
+          <button class="play" id="d-open"><span id="d-open-label"></span><kbd id="d-open-key"></kbd></button>
+          <button class="round glass" id="d-close" aria-label="close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>
+      </div>
+    </div>
   </section>
 
   <footer class="hints" id="hints"></footer>

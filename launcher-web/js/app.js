@@ -14,11 +14,19 @@
     ar: { games: "الألعاب", profile: "الملف الشخصي", apps: "التطبيقات", play: "تشغيل", move: "تنقّل", tabs: "تبديل القسم", lang: "EN",
       hours: "ساعة", last: "آخر لعب", today: "اليوم", yesterday: "أمس", days: "قبل %d يوم", never: "لم تُلعب بعد",
       player: "لاعب Darksham", stat_games: "عدد الألعاب", stat_hours: "ساعات اللعب", soon: "قريباً", apps_sub: "التطبيقات قادمة في نسخة لاحقة",
-      demo: "معاينة: لن تُشغَّل «%s» من هنا", empty: "ما لقينا ألعاب", launching: "جاري تشغيل «%s»…", busy: "جاري التشغيل", launch_fail: "تعذّر تشغيل «%s»: %s" },
+      demo: "معاينة: لن تُشغَّل «%s» من هنا", empty: "ما لقينا ألعاب", store: "المتجر", details: "التفاصيل", open_steam: "فتح في Steam", shelf: "الأقسام",
+      free: "مجاني", in_library: "في مكتبتك", temp_source: "مصدر مؤقت", arabic_yes: "يدعم العربية", loading: "جاري تحميل المتجر…", store_fail: "تعذّر الوصول للمتجر، تحقق من الإنترنت", retry: "إعادة المحاولة",
+      opened_steam: "فُتحت صفحة «%s» في Steam", developer: "المطوّر", publisher: "الناشر", release: "الإصدار", genre: "النوع", platforms: "المنصات", no_details: "ما في تفاصيل لهاللعبة",
+      store_note: "متجر <b>Darksham</b> الخاص قيد العمل. حالياً المتجر من Steam كمصدر مؤقت.",
+      sh_featured: "مميّز", sh_top_sellers: "الأكثر مبيعاً", sh_specials: "عروض", sh_new_releases: "إصدارات جديدة", sh_coming_soon: "قريباً", back: "رجوع", launching: "جاري تشغيل «%s»…", busy: "جاري التشغيل", launch_fail: "تعذّر تشغيل «%s»: %s" },
     en: { games: "Games", profile: "Profile", apps: "Apps", play: "Play", move: "Move", tabs: "Switch tab", lang: "عربي",
       hours: "h", last: "Last played", today: "Today", yesterday: "Yesterday", days: "%d days ago", never: "Never played",
       player: "Darksham player", stat_games: "Games", stat_hours: "Hours played", soon: "Coming soon", apps_sub: "Apps arrive in a later version",
-      demo: "Preview: \"%s\" will not start from here", empty: "No games found", launching: "Starting \"%s\"…", busy: "Starting", launch_fail: "Could not start \"%s\": %s" },
+      demo: "Preview: \"%s\" will not start from here", empty: "No games found", store: "Store", details: "Details", open_steam: "Open in Steam", shelf: "Shelves",
+      free: "Free", in_library: "In your library", temp_source: "temporary source", arabic_yes: "Arabic supported", loading: "Loading the store…", store_fail: "Could not reach the store, check your connection", retry: "Retry",
+      opened_steam: "Opened \"%s\" in Steam", developer: "Developer", publisher: "Publisher", release: "Release", genre: "Genre", platforms: "Platforms", no_details: "No details for this game",
+      store_note: "The <b>Darksham</b> store is in progress. For now the store is Steam, as a temporary source.",
+      sh_featured: "Featured", sh_top_sellers: "Top sellers", sh_specials: "Specials", sh_new_releases: "New releases", sh_coming_soon: "Coming soon", back: "Back", launching: "Starting \"%s\"…", busy: "Starting", launch_fail: "Could not start \"%s\": %s" },
   };
   let lang = q.get("lang") || "ar";
   const t = (k, ...a) => (T[lang][k] || k).replace(/%[sd]/g, () => a.shift());
@@ -31,12 +39,14 @@
   };
 
   // ------------------------------------------------------------------ data
-  let games = [];          // filled by loadLibrary(): from the backend (http) or from library.js (file://)
+  const TABS = ["games", "store", "profile", "apps"];
+  let library = [];        // installed games: from the backend (http) or from library.js (file://)
+  let games = [];          // the list shown in the card row: the library, or one store shelf
   let idx = 0;
   const API = location.protocol.startsWith("http");
   const TOKEN = (window.DARKSHAM && window.DARKSHAM.token) || "";
-  let tab = ["games", "profile", "apps"].indexOf(q.get("tab") || "games");
-  if (tab < 0) tab = clamp(parseInt(q.get("tab"), 10) || 0, 0, 2);
+  let tab = TABS.indexOf(q.get("tab") || "games");
+  if (tab < 0) tab = clamp(parseInt(q.get("tab"), 10) || 0, 0, TABS.length - 1);
   let pad = false;
   let started = false;
 
@@ -77,9 +87,12 @@
     const c = el("div", "card");
     c.innerHTML = '<div class="glow"></div><div class="art"><img alt="" draggable="false"><div class="name"></div></div><div class="shine"></div><div class="ring"></div>';
     const img = $("img", c);
+    img.onerror = () => { const fb = g.header || g.capsule; if (fb && !img.dataset.fb) { img.dataset.fb = "1"; img.src = "/store-img?u=" + encodeURIComponent(fb); } };
+    if (g.source === "store") img.onload = () => storeColours(g, img);
     img.src = g.cover || g.hero;
     $(".name", c).textContent = g.cover ? "" : g.title;
-    c.addEventListener("click", () => { if (tab !== 0) return; if (i === idx) launch(); else select(i); });
+    if (g.source === "store") $(".art", c).insertAdjacentHTML("afterend", cardTag(g));
+    c.addEventListener("click", () => { if (tab > 1) return; if (i === idx) launch(); else select(i); });
     rowEl.appendChild(c);
     cards.push({ el: c, intro: new Spring(STATIC ? 1 : 0, 120, 14), delay: 0.45 + i * 0.08, f: 0 });
     });
@@ -132,7 +145,7 @@
   let front = 0;
   function setBackdrop(g, instant) {
     const nextIdx = 1 - front;
-    const set = (imgs, src, zoomFrom) => {
+    const set = (imgs, src, zoomFrom, fb) => {
       const n = imgs[nextIdx], o = imgs[front];
       const same = n.dataset.src === src;
       n.dataset.src = src;
@@ -144,10 +157,13 @@
         o.getAnimations().forEach((a) => a.cancel());
         o.animate([{ opacity: parseFloat(getComputedStyle(o).opacity) || 1 }, { opacity: 0 }], { duration: 900, fill: "forwards" });
       };
-      if (same && n.complete) go(); else { n.onload = go; n.onerror = go; }
+      let triedFb = false;
+      n.onload = go;
+      n.onerror = () => { if (fb && !triedFb && n.dataset.src !== fb) { triedFb = true; n.dataset.src = fb; n.src = fb; } else go(); };
+      if (same && n.complete && n.naturalWidth) go();
     };
-    set(heroImgs, g.hero || g.cover, 1.09);
-    set(fillImgs, g.blur || g.hero || g.cover, 1.04);
+    set(heroImgs, g.hero || g.cover, 1.09, g.capsule || g.header);
+    set(fillImgs, g.blur || g.hero || g.cover, 1.04, g.capsule || g.header);
     front = nextIdx;
   }
 
@@ -159,26 +175,204 @@
   }
   function chip(icon, text, cls) { const c = el("span", "chip " + (cls || ""), (icon || "") + "<span></span>"); $("span", c).textContent = text; return c; }
 
-  function showGame(g, instant) {
+  function applyColors(g, snap) {
     const root = document.documentElement.style;
     root.setProperty("--accent", g.accent); root.setProperty("--deep", g.dark);
-    FX.setColors(g.accent, g.dark); if (instant) FX.snap();
+    FX.setColors(g.accent, g.dark); if (snap) FX.snap();
+  }
+  // Store art comes from our own origin (the backend proxies it), so the canvas can read it: pick the most vivid colour.
+  function storeColours(g, img) {
+    if (g.coloured || !img.naturalWidth) return;
+    try {
+      const c = document.createElement("canvas"); c.width = c.height = 32;
+      const x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(img, 0, 0, 32, 32);
+      const d = x.getImageData(0, 0, 32, 32).data; let best = -1, rgb = [138, 184, 255];
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i] / 255, gg = d[i + 1] / 255, b = d[i + 2] / 255, mx = Math.max(r, gg, b), mn = Math.min(r, gg, b);
+        const sat = mx ? (mx - mn) / mx : 0, sc = sat * mx * (mx > .25 && mx < .95 ? 1 : .4);
+        if (sc > best) { best = sc; rgb = [d[i], d[i + 1], d[i + 2]]; }
+      }
+      const toHex = (a) => "#" + a.map((v) => Math.round(clamp(v, 0, 255)).toString(16).padStart(2, "0")).join("");
+      const mx = Math.max(...rgb) || 1, k = 205 / mx;   // brighten to a usable accent, and take a deep shade for the dark colour
+      g.accent = toHex(rgb.map((v) => v * Math.max(1, k))); g.dark = toHex(rgb.map((v) => v * 0.16));
+      g.coloured = true;
+      if (games[idx] === g) applyColors(g, false);
+    } catch (e) { /* canvas blocked: keep the default accent */ }
+  }
+  function money(cents, cur) {
+    try { return new Intl.NumberFormat("en-US", { style: "currency", currency: cur || "USD", currencyDisplay: "narrowSymbol" }).format(cents / 100); } catch (e) { return (cents / 100).toFixed(2); }
+  }
+  function priceBits(g) {
+    const p = g.price;
+    if (!p || p.final == null) return { text: t("soon"), off: 0, was: "" };
+    if (p.final === 0) return { text: t("free"), off: 0, was: "" };
+    return { text: money(p.final, p.currency), off: p.discount || 0, was: p.discount ? money(p.original, p.currency) : "" };
+  }
+  function cardTag(g) {
+    const b = priceBits(g);
+    return '<div class="tag">' + (b.off ? "<span class='off' dir='ltr'>-" + b.off + "%</span>" : "") + "<span dir='ltr'>" + b.text + "</span></div>";
+  }
+  function setLogo(g) {
+    logo.onerror = () => { logo.style.display = "none"; title.style.display = ""; };
+    logo.onload = () => { logo.style.display = ""; title.style.display = "none"; };
+    title.textContent = g.title; logo.alt = g.title;
+    if (g.logo) { logo.style.display = ""; title.style.display = "none"; logo.src = g.logo; } else { logo.style.display = "none"; title.style.display = ""; }
+  }
+
+  function showGame(g, instant) {
+    applyColors(g, instant);
     setBackdrop(g, instant);
-    logo.style.display = g.logo ? "" : "none"; title.style.display = g.logo ? "none" : "";
-    if (g.logo) logo.src = g.logo; title.textContent = g.title; logo.alt = g.title;
-    chips.replaceChildren(
-      chip(ICON.pad, g.source === "steam" ? "Steam" : "Darksham", "src"),
-      chip(ICON.clock, `${String(g.hours).replace(/\.0$/, "")} ${t("hours")}`),
-      chip(ICON.cal, `${t("last")}: ${lastText(g.last_played)}`));
+    setLogo(g);
+    $("#info").classList.toggle("store", g.source === "store");
+    if (g.source === "store") {
+      const b = priceBits(g), owned = library.some((l) => l.appid === String(g.appid));
+      const det = g.det && g.det[lang];
+      const list = [chip(ICON.pad, "Steam", "src")];
+      const pc = chip(null, ""); pc.className = "chip" + (b.off ? " deal" : ""); pc.innerHTML = '<span dir="ltr"></span>';
+      $("span", pc).textContent = (b.off ? "-" + b.off + "%  " : "") + b.text;
+      if (b.was) { const sEl = document.createElement("s"); sEl.dir = "ltr"; sEl.textContent = b.was; pc.appendChild(sEl); }
+      list.push(pc);
+      if (owned) list.push(chip(null, t("in_library"), "ok"));
+      if (det) {
+        if (det.arabic) list.push(chip(null, t("arabic_yes"), "ok"));
+      }
+      chips.replaceChildren(...list);
+      if (!det) wantDetails(g);
+    } else {
+      chips.replaceChildren(
+        chip(ICON.pad, g.source === "steam" ? "Steam" : "Darksham", "src"),
+        chip(ICON.clock, `${String(g.hours).replace(/\.0$/, "")} ${t("hours")}`),
+        chip(ICON.cal, `${t("last")}: ${lastText(g.last_played)}`));
+    }
     if (instant) return;
     const ease = "cubic-bezier(.16,1,.3,1)";
     const blocks = [$(".logo-wrap"), ...chips.children, $(".actions")];
-    blocks.forEach((b, i) => {
-      b.getAnimations().forEach((a) => a.cancel());
-      b.animate([{ opacity: 0, transform: "translateY(26px)", filter: "blur(10px)" }, { opacity: 1, transform: "none", filter: "blur(0)" }],
+    blocks.forEach((bl, i) => {
+      bl.getAnimations().forEach((an) => an.cancel());
+      bl.animate([{ opacity: 0, transform: "translateY(26px)", filter: "blur(10px)" }, { opacity: 1, transform: "none", filter: "blur(0)" }],
         { duration: 700, delay: i * 55, easing: ease, fill: "backwards" });
     });
   }
+
+  // ------------------------------------------------------------------ store (Steam as a temporary source)
+  const store = { loaded: false, lang: "", loading: false, error: false, shelves: [], shelf: 0, idx: {} };
+  function mapStoreItem(x) {
+    const id = x.appid;
+    return { id: "store:" + id, appid: id, title: x.name, source: "store", hours: 0, last_played: 0, accent: "#8ab8ff", dark: "#0b1020",
+      cover: `/store-art/${id}/cover`, hero: `/store-art/${id}/hero`, logo: `/store-art/${id}/logo`, header: x.header, capsule: x.capsule,
+      price: { final: x.final, original: x.original, discount: x.discount, currency: x.currency }, det: {} };
+  }
+  function useList(items, i, animate) {
+    rowEl.replaceChildren(); cards.length = 0;
+    games = items; idx = clamp(i || 0, 0, Math.max(0, items.length - 1)); row.x = row.to = idx;
+    $("#info").style.visibility = items.length ? "" : "hidden";
+    buildCards();
+    if (animate && !STATIC) cards.forEach((c, k) => { c.intro.x = 0; c.intro.v = 0; c.intro.to = 0; setTimeout(() => (c.intro.to = 1), 120 + k * 70); });
+    if (games.length) showGame(games[idx], !animate);
+  }
+  function storeMsg(text, err) {
+    const m = $("#store-msg"); m.classList.toggle("on", !!text); m.classList.toggle("err", !!err); $("#store-msg-text").textContent = text || ""; $("#store-retry").textContent = t("retry");
+  }
+  function buildShelves() {
+    const box = $("#shelves"); box.replaceChildren();
+    store.shelves.forEach((sh, i) => { const b = el("button", i === store.shelf ? "on" : ""); b.textContent = t("sh_" + sh.id); b.addEventListener("click", () => setShelf(i)); box.appendChild(b); });
+    $("#store-note").innerHTML = t("store_note");
+  }
+  function setShelf(i) {
+    if (!store.shelves.length) return;
+    i = (i + store.shelves.length) % store.shelves.length;
+    store.idx[store.shelf] = idx; store.shelf = i; sfx.tab(); rumble(14, 0.05, 0.2);
+    [...$("#shelves").children].forEach((b, k) => b.classList.toggle("on", k === i));
+    useList(store.shelves[i].items, store.idx[i] || 0, true);
+  }
+  async function loadStore() {
+    if (!API) { store.error = true; return; }
+    store.loading = true; store.error = false; storeMsg(t("loading"), false);
+    try {
+      const r = await fetch("/api/store/home?lang=" + lang, { cache: "no-store" });
+      if (!r.ok) throw new Error(r.status);
+      const j = await r.json();
+      store.shelves = (j.shelves || []).map((sh) => ({ id: sh.id, items: sh.items.map(mapStoreItem) }));
+      store.lang = lang; store.loaded = true; store.shelf = 0; store.idx = {};
+    } catch (e) { store.error = true; }
+    store.loading = false;
+  }
+  async function enterStore(animate) {
+    if (tab !== 1) return;
+    $("#shelves").classList.add("on"); $("#store-note").classList.add("on");
+    if (!store.loaded || store.lang !== lang) {
+      useList([], 0); storeMsg(t("loading"), false);
+      await loadStore();
+      if (tab !== 1) return;
+    }
+    if (store.error || !store.shelves.length) { storeMsg(API ? t("store_fail") : t("demo", t("store")), true); useList([], 0); return; }
+    storeMsg("");
+    if (!store.devApplied) { store.devApplied = true; store.shelf = clamp(parseInt(q.get("shelf") || "0", 10) || 0, 0, store.shelves.length - 1); if (q.has("sel")) store.idx[store.shelf] = parseInt(q.get("sel"), 10) || 0; if (q.has("detail")) setTimeout(openDetail, 1200); }
+    buildShelves();
+    useList(store.shelves[store.shelf].items, store.idx[store.shelf] || 0, animate !== false);
+  }
+  function leaveStore() {
+    $("#shelves").classList.remove("on"); $("#store-note").classList.remove("on"); storeMsg("");
+    $("#info").classList.remove("store");
+    useList(library, store.libIdx || 0, false);
+  }
+  $("#store-retry").addEventListener("click", () => { store.loaded = false; enterStore(true); });
+
+  // details are fetched when a store item is selected (debounced), then reused
+  let detTimer = 0;
+  function wantDetails(g) { clearTimeout(detTimer); detTimer = setTimeout(() => getDetails(g).then(() => { if (games[idx] === g && tab === 1 && !detailOpen) showGame(g, true); }), 350); }
+  async function getDetails(g) {
+    if (g.det[lang]) return g.det[lang];
+    try { const r = await fetch(`/api/store/app/${g.appid}?lang=${lang}`); if (r.ok) g.det[lang] = await r.json(); } catch (e) { /* offline */ }
+    return g.det[lang];
+  }
+
+  // ---- details sheet
+  let detailOpen = false, shotTimer = 0, shotI = 0, shotFront = 0, shotList = [];
+  const shotImgs = [$("#shot-a"), $("#shot-b")];
+  function showShot(i, instant) {
+    if (!shotList.length) { shotImgs.forEach((im) => im.classList.remove("on")); return; }
+    shotI = (i + shotList.length) % shotList.length;
+    const n = shotImgs[1 - shotFront], o = shotImgs[shotFront];
+    n.onload = () => { n.classList.add("on"); o.classList.remove("on"); shotFront = 1 - shotFront; };
+    n.src = "/store-img?u=" + encodeURIComponent(shotList[shotI]);
+    [...$("#shot-thumbs").children].forEach((d, k) => d.classList.toggle("on", k === shotI));
+  }
+  async function openDetail() {
+    const g = games[idx]; if (!g || g.source !== "store") return;
+    detailOpen = true; sfx.ok(); rumble(30, 0.15, 0.3);
+    $("#detail").classList.add("on");
+    $("#d-title").textContent = g.title; $("#d-open-label").textContent = t("open_steam"); $("#d-open-key").textContent = key("accept");
+    const b = priceBits(g);
+    $("#d-price").innerHTML = '<span dir="ltr">' + (b.off ? `<em>-${b.off}%</em>` : "") + (b.was ? `<s>${b.was}</s>` : "") + b.text + "</span>";
+    $("#d-desc").textContent = ""; $("#d-facts").replaceChildren(); $("#d-chips").replaceChildren(); $("#shot-thumbs").replaceChildren();
+    shotList = []; shotImgs.forEach((im) => im.classList.remove("on"));
+    shotImgs[shotFront].src = g.capsule || g.header || ""; shotImgs[shotFront].onload = () => shotImgs[shotFront].classList.add("on");
+    const det = await getDetails(g);
+    if (!detailOpen || games[idx] !== g) return;
+    if (!det) { $("#d-desc").textContent = t("no_details"); return; }
+    $("#d-desc").textContent = det.description || "";
+    const chipsEl = $("#d-chips"); chipsEl.replaceChildren(...det.genres.map((x) => chip(null, x)), ...(det.arabic ? [chip(null, t("arabic_yes"), "ok")] : []));
+    const facts = [[t("developer"), det.developers.join(", ")], [t("publisher"), det.publishers.join(", ")], [t("release"), det.release], [t("platforms"), [det.windows && "Windows", det.linux && "Linux"].filter(Boolean).join(" · ")]].filter((f) => f[1]);
+    $("#d-facts").replaceChildren(...facts.flatMap(([k, v]) => { const dt = el("dt"); dt.textContent = k; const dd = el("dd"); dd.textContent = v; return [dt, dd]; }));
+    shotList = det.screenshots || [];
+    $("#shot-thumbs").replaceChildren(...(det.thumbs || shotList).slice(0, shotList.length).map((u, k) => { const im = el("img"); im.src = "/store-img?u=" + encodeURIComponent(u); im.alt = ""; im.addEventListener("click", () => { showShot(k); clearInterval(shotTimer); shotTimer = setInterval(() => showShot(shotI + 1), 4200); }); return im; }));
+    shotFront = 0; showShot(0);
+    clearInterval(shotTimer); shotTimer = setInterval(() => showShot(shotI + 1), 4200);
+  }
+  function closeDetail() { if (!detailOpen) return; detailOpen = false; clearInterval(shotTimer); $("#detail").classList.remove("on"); sfx.tab(); }
+  async function openInSteam() {
+    const g = games[idx]; if (!g || !API || !TOKEN) { showToast(t("demo", g ? g.title : "")); return; }
+    try {
+      const r = await fetch("/api/store/open", { method: "POST", headers: { "Content-Type": "application/json", "X-Darksham-Token": TOKEN }, body: JSON.stringify({ appid: String(g.appid) }) });
+      const j = await r.json().catch(() => ({}));
+      showToast(j.ok ? t("opened_steam", g.title) : t("launch_fail", g.title, j.message || j.error || r.status));
+    } catch (e) { showToast(t("launch_fail", g.title, String(e))); }
+    sfx.ok();
+  }
+  $("#d-open").addEventListener("click", openInSteam);
+  $("#d-close").addEventListener("click", closeDetail);
+  $("#detail").addEventListener("click", (e) => { if (e.target.id === "detail") closeDetail(); });
 
   // ------------------------------------------------------------------ tabs, pages, hints
   const tabsEl = $("#tabs"), pill = $(".pill", tabsEl);
@@ -190,15 +384,15 @@
   const hoursText = (h) => `${String(h).replace(/\.0$/, "")} ${t("hours")}`;
   function buildProfile() {
     $("#p-name").textContent = t("player");
-    const total = games.reduce((sum, g) => sum + g.hours, 0);
-    $("#p-sub").textContent = `${games.length} ${t("stat_games")} · ${Math.round(total)} ${t("hours")}`;
+    const total = library.reduce((sum, g) => sum + g.hours, 0);
+    $("#p-sub").textContent = `${library.length} ${t("stat_games")} · ${Math.round(total)} ${t("hours")}`;
     const stats = $("#p-tiles"); stats.replaceChildren();
-    [[games.length, t("stat_games")], [Math.round(total), t("stat_hours")]].forEach(([n, label]) => {
+    [[library.length, t("stat_games")], [Math.round(total), t("stat_hours")]].forEach(([n, label]) => {
       const st = el("div", "stat", "<b></b><span></span>"); $("span", st).textContent = label; $("b", st).dataset.n = n; $("b", st).textContent = n; stats.appendChild(st);
     });
     const bars = $("#p-bars"); bars.replaceChildren();
-    const max = Math.max(1, ...games.map((g) => g.hours));
-    games.slice(0, 5).forEach((g) => {
+    const max = Math.max(1, ...library.map((g) => g.hours));
+    library.slice(0, 5).forEach((g) => {
       const r = el("div", "r", "<span></span><div class='t'><i></i></div><span></span>");
       const [a, , c] = r.children; a.textContent = g.title; c.textContent = hoursText(g.hours);
       const bar = $("i", r); bar.style.width = Math.max(1.5, g.hours / max * 100) + "%"; bar.style.setProperty("--c", g.accent); bar.style.setProperty("--origin", rtl() ? "right" : "left");
@@ -218,25 +412,34 @@
 
   function setTab(i) {
     if (i === tab) return;
-    tab = (i + 3) % 3; sfx.tab(); rumble(18, 0.05, 0.2); applyTab(true);
+    closeDetail();
+    const was = tab; tab = (i + TABS.length) % TABS.length; sfx.tab(); rumble(18, 0.05, 0.2);
+    if (was === 0) store.libIdx = idx;
+    if (was === 1 && tab !== 1) leaveStore();
+    applyTab(true);
+    if (tab === 1) enterStore(true);
   }
   function applyTab(animate) {
     placePill();
-    const games_ = tab === 0;
-    $("#row").style.display = games_ ? "" : "none";
-    $("#info").style.display = games_ ? "" : "none";
-    $("#page-profile").classList.toggle("on", tab === 1);
-    $("#page-apps").classList.toggle("on", tab === 2);
-    if (tab === 1) { buildProfile(); if (animate) animateProfile(); }
-    if (tab === 2 && animate) $("#page-apps").animate([{ opacity: 0, transform: "translateY(24px)" }, { opacity: 1, transform: "none" }], { duration: 600, easing: "cubic-bezier(.16,1,.3,1)" });
-    if (tab === 0 && animate) { $("#info").animate([{ opacity: 0 }, { opacity: 1 }], { duration: 500 }); }
+    const cardsTab = tab <= 1;
+    $("#row").style.display = cardsTab ? "" : "none";
+    $("#info").style.display = cardsTab ? "" : "none";
+    $("#page-profile").classList.toggle("on", tab === 2);
+    $("#page-apps").classList.toggle("on", tab === 3);
+    $("#play-label").textContent = tab === 1 ? t("details") : t("play");
+    buildHints();
+    if (tab === 2) { buildProfile(); if (animate) animateProfile(); }
+    if (tab === 3 && animate) $("#page-apps").animate([{ opacity: 0, transform: "translateY(24px)" }, { opacity: 1, transform: "none" }], { duration: 600, easing: "cubic-bezier(.16,1,.3,1)" });
+    if (cardsTab && animate) { $("#info").animate([{ opacity: 0 }, { opacity: 1 }], { duration: 500 }); }
   }
 
   function key(what) {
-    return { accept: pad ? "A" : "Enter", tabs: pad ? "LB / RB" : "Q / E", lang: pad ? "Y" : "F2", move: pad ? "D-pad" : "← →" }[what];
+    return { accept: pad ? "A" : "Enter", tabs: pad ? "LB / RB" : "Q / E", lang: pad ? "Y" : "F2", move: pad ? "D-pad" : "← →", shelf: pad ? "D-pad ↑↓" : "↑ ↓", back: pad ? "B" : "Esc" }[what];
   }
   function buildHints() {
-    $("#hints").replaceChildren(...[["move", t("move")], ["accept", t("play")], ["tabs", t("tabs")], ["lang", t("lang")]].map(([k, label]) => {
+    const items = [["move", t("move")], ["accept", tab === 1 ? t("details") : t("play")], ["tabs", t("tabs")], ["lang", t("lang")]];
+    if (tab === 1) items.splice(1, 0, ["shelf", t("shelf")]);
+    $("#hints").replaceChildren(...items.map(([k, label]) => {
       const d = el("div", "", "<kbd></kbd><span></span>"); $("kbd", d).textContent = key(k); $("span", d).textContent = label; return d;
     }));
     $("#play-key").textContent = key("accept");
@@ -256,9 +459,11 @@
 
   function applyLang() {
     document.documentElement.lang = lang; document.documentElement.dir = rtl() ? "rtl" : "ltr";
-    tabBtns.forEach((b) => (b.textContent = t(b.dataset.tab))); $("#play-label").textContent = t("play");
+    tabBtns.forEach((b) => (b.textContent = t(b.dataset.tab))); $("#play-label").textContent = tab === 1 ? t("details") : t("play");
     $("#a-title").textContent = t("soon"); $("#a-sub").textContent = t("apps_sub");
-    buildHints(); if (games.length) showGame(games[idx], true); if (tab === 1) buildProfile();
+    buildHints(); if (games.length) showGame(games[idx], true); if (tab === 2) buildProfile();
+    if (tab === 1 && store.loaded && store.lang !== lang) { closeDetail(); enterStore(false); }
+    else if (tab === 1 && store.loaded) buildShelves();
     requestAnimationFrame(placePill);
   }
 
@@ -268,13 +473,15 @@
     if (i === idx) { sfx.edge(); rumble(30, 0.2, 0.1); return; }
     idx = i; row.to = i; sfx.move(); rumble(); showGame(games[idx], false);
   }
-  function move(screenDir) { if (tab !== 0 || !games.length) return; select(idx + (rtl() ? -screenDir : screenDir)); }
+  function move(screenDir) { if (tab > 1 || detailOpen || !games.length) return; select(idx + (rtl() ? -screenDir : screenDir)); }
 
   const toast = $("#toast"); let toastTimer = 0;
   function showToast(text) { toast.textContent = text; toast.classList.add("on"); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove("on"), 2600); }
   let busy = false;
   function setBusy(on) { busy = on; $("#play").classList.toggle("busy", on); $("#play-label").textContent = on ? t("busy") : t("play"); }
   async function launch() {
+    if (detailOpen) { openInSteam(); return; }
+    if (tab === 1) { if (games.length) openDetail(); return; }
     if (tab !== 0 || !games.length || busy) return;
     const g = games[idx]; sfx.ok(); rumble(60, 0.3, 0.5);
     const p = $("#play"); p.classList.add("press"); setTimeout(() => p.classList.remove("press"), 160);
@@ -303,6 +510,13 @@
     if (pad) { pad = false; buildHints(); }
     if (e.repeat) return;
     const k = e.key;
+    if (detailOpen) {
+      if (k === "Escape" || k === "Backspace") closeDetail();
+      else if (k === "Enter" || k === " ") openInSteam();
+      else if (k === "ArrowRight") showShot(shotI + (rtl() ? -1 : 1)); else if (k === "ArrowLeft") showShot(shotI + (rtl() ? 1 : -1));
+      return;
+    }
+    if (tab === 1 && (k === "ArrowDown" || k === "ArrowUp")) { e.preventDefault(); setShelf(store.shelf + (k === "ArrowDown" ? 1 : -1)); return; }
     if (k === "ArrowRight") move(1); else if (k === "ArrowLeft") move(-1);
     else if (k === "Enter" || k === " ") launch();
     else if (k === "e" || k === "E") setTab(tab + 1); else if (k === "q" || k === "Q") setTab(tab - 1);
@@ -317,7 +531,9 @@
     if (right || left || gp.buttons.some((b) => b.pressed)) { if (!pad) { pad = true; buildHints(); } }
     repeat("r", right, now, () => move(1)); repeat("l", left, now, () => move(-1));
     const edge = (i, fn) => { const p = !!gp.buttons[i]?.pressed; if (p && !prevBtn[i]) fn(); prevBtn[i] = p; };
-    edge(0, launch); edge(5, () => setTab(tab + 1)); edge(4, () => setTab(tab - 1)); edge(3, toggleLang);
+    edge(0, launch); edge(1, closeDetail); edge(5, () => setTab(tab + 1)); edge(4, () => setTab(tab - 1)); edge(3, toggleLang);
+    const ay = gp.axes[1] || 0, down = gp.buttons[13]?.pressed || ay > 0.6, up = gp.buttons[12]?.pressed || ay < -0.6;
+    if (tab === 1 && !detailOpen) { repeat("d", down, now, () => setShelf(store.shelf + 1)); repeat("u", up, now, () => setShelf(store.shelf - 1)); }
   }
 
   // ------------------------------------------------------------------ loop + start
@@ -325,7 +541,7 @@
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now; clock += dt;
     const time = STATIC ? 3 : clock;
-    if (tab === 0) layoutCards(time, dt);
+    if (tab <= 1) layoutCards(time, dt);
     FX.tick(time, STATIC ? 0.0001 : dt);
     pollPad(now);
     requestAnimationFrame(frame);
@@ -349,10 +565,11 @@
     requestAnimationFrame((n) => { last = n; frame(n); });
   }
   Promise.all([document.fonts && document.fonts.ready, loadLibrary()]).then(([, list]) => {
-    games = list;
+    library = list; games = library;
     idx = clamp(parseInt(q.get("select") || "0", 10) || 0, 0, Math.max(0, games.length - 1));
     row.x = row.to = idx;
     buildCards();
     begin();
+    if (tab === 1) enterStore(false);
   });
 })();

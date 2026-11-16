@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Darksham Launcher backend: serves the UI, the game library and a launch endpoint on localhost.
+"""Darksham Launcher backend: serves the UI, the game library, the store (Steam public data) and a launch endpoint on localhost.
 
   python3 backend/server.py [--port 8765] [--open]
 
@@ -17,10 +17,11 @@ import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import steam  # noqa: E402
+import store  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 TOKEN = secrets.token_urlsafe(24)
@@ -92,6 +93,27 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, html, "text/html; charset=utf-8", {"Cache-Control": "no-store"})
         if path == "/api/library":
             return self._send(200, {"games": [public(g) for g in library()]}, extra={"Cache-Control": "no-store"})
+        q = parse_qs(urlparse(self.path).query)
+        lang = (q.get("lang") or ["en"])[0]
+        if path == "/api/store/home":
+            try:
+                return self._send(200, store.home(lang), extra={"Cache-Control": "no-store"})
+            except Exception as e:  # network down and nothing cached
+                return self._send(502, {"error": "store unavailable", "detail": type(e).__name__})
+        m = re.fullmatch(r"/api/store/app/(\d{1,12})", path)
+        if m:
+            try:
+                d = store.app(int(m.group(1)), lang)
+            except Exception as e:
+                return self._send(502, {"error": "store unavailable", "detail": type(e).__name__})
+            return self._send(200, d, extra={"Cache-Control": "no-store"}) if d else self._send(404, {"error": "no such app"})
+        m = re.fullmatch(r"/store-art/(\d{1,12})/(cover|hero|logo|header)", path)
+        if m:
+            got = store.art(int(m.group(1)), m.group(2))
+            return self._send(200, got[0], got[1], {"Cache-Control": "max-age=86400"}) if got else self._send(404, {"error": "no art"})
+        if path == "/store-img":
+            got = store.image((q.get("u") or [""])[0])
+            return self._send(200, got[0], got[1], {"Cache-Control": "max-age=86400"}) if got else self._send(404, {"error": "not allowed"})
         m = re.fullmatch(r"/art/(\d+)/(cover|hero|logo|blur)", path)
         if m:
             g = next((x for x in (_games or library()) if x["appid"] == m.group(1)), None)
@@ -107,7 +129,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self._host_ok():
             return self._send(403, {"error": "bad host"})
-        if urlparse(self.path).path != "/api/launch":
+        route = urlparse(self.path).path
+        if route not in ("/api/launch", "/api/store/open"):
             return self._send(404, {"error": "not found"})
         origin = self.headers.get("Origin")
         if origin and urlparse(origin).hostname not in ("127.0.0.1", "localhost"):
@@ -119,6 +142,13 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(min(n, 4096)) or b"{}")
         except ValueError:
             return self._send(400, {"error": "bad json"})
+        if route == "/api/store/open":
+            appid = str(body.get("appid", ""))
+            if not appid.isdigit() or len(appid) > 12:
+                return self._send(400, {"ok": False, "message": "bad id"})
+            ok, msg = steam.open_store(appid)
+            sys.stderr.write("[launcher] open store page %s: %s\n" % (appid, msg))
+            return self._send(200 if ok else 500, {"ok": ok, "message": msg})
         m = ID_RE.match(str(body.get("id", "")))
         if not m:
             return self._send(400, {"ok": False, "message": "bad id"})
