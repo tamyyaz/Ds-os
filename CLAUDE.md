@@ -63,4 +63,5 @@ Darksham OS: نظام مبني على Bazzite (Fedora Atomic / Universal Blue) �
 - الموقع الرسمي موجود أصلاً بمستودع خاص `tamyyaz/Darksham-Os` (Next.js على Vercel). فما بنعمل موقع GitHub Pages: نحدّث صفحة OS هناك (`src/content/os.ts`).
 - حزم GHCR مو Public (فحص بدون تسجيل رجع 404 لـ`ds-os:latest`) و`bootc switch` ما انجرّب.
 - وضع الألعاب (Gaming Mode): بديل لواجهة Steam، مو جلسة منفصلة فقط.
+- Darksham Launcher: مجلد `launcher/` بهالمستودع (مشروع Darksham Engine). المرحلة 1 تطبيق عادي يتجرّب على ويندوز أولاً، والمرحلة 2 جلسة gamescope بعد تجربتها على VM. مصدر Steam للتجربة (3 مكتبات على جهاز صاحب المشروع). التفاصيل والحالة بـ`launcher/README.md`.
 - الشعار بدون سيف (كلمة DARKSHAM فقط) بكل الملفات: الشعار، الخلفية، المعاينات، السبلاش، الانترو. (سؤال 3 انحسم: لا سيف 80%.)
