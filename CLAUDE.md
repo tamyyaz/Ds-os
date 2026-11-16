@@ -59,4 +59,8 @@ Darksham OS: نظام مبني على Bazzite (Fedora Atomic / Universal Blue) �
 8. وضع الألعاب: تفضّل جلسة مستقلة بتسجيل الدخول أم بديل لواجهة Steam؟
 
 ## قرارات (حدّث هذا القسم بعد كل جواب)
+- المحرك (Darksham Engine) قيد البناء، ومشروعه بمستودع خاص `tamyyaz/Darksham-studio` (فرع `ccr-bdb15ddf-loiwfp`، وفيه `docs/ENGINE_REPORT.ar.md` و`HANDOFF.md`). مرجع مفيد وقت نبني Launcher.
+- الموقع الرسمي موجود أصلاً بمستودع خاص `tamyyaz/Darksham-Os` (Next.js على Vercel). فما بنعمل موقع GitHub Pages: نحدّث صفحة OS هناك (`src/content/os.ts`).
+- حزم GHCR مو Public (فحص بدون تسجيل رجع 404 لـ`ds-os:latest`) و`bootc switch` ما انجرّب.
+- وضع الألعاب (Gaming Mode): بديل لواجهة Steam، مو جلسة منفصلة فقط.
 - الشعار بدون سيف (كلمة DARKSHAM فقط) بكل الملفات: الشعار، الخلفية، المعاينات، السبلاش، الانترو. (سؤال 3 انحسم: لا سيف 80%.)
