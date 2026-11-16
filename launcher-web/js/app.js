@@ -151,7 +151,7 @@
       n.dataset.src = src;
       if (!same) n.src = src;
       const go = () => {
-        if (instant) { n.style.opacity = 1; o.style.opacity = 0; return; }
+        if (instant) { n.getAnimations().forEach((a) => a.cancel()); o.getAnimations().forEach((a) => a.cancel()); n.style.opacity = 1; o.style.opacity = 0; return; }
         n.getAnimations().forEach((a) => a.cancel());
         n.animate([{ opacity: 0, transform: `scale(${zoomFrom})`, filter: "blur(14px)" }, { opacity: 1, transform: "scale(1)", filter: "blur(0px)" }], { duration: 1400, easing: "cubic-bezier(.16,1,.3,1)", fill: "forwards" });
         o.getAnimations().forEach((a) => a.cancel());
@@ -268,6 +268,7 @@
     $("#info").style.visibility = items.length ? "" : "hidden";
     buildCards();
     if (animate && !STATIC) cards.forEach((c, k) => { c.intro.x = 0; c.intro.v = 0; c.intro.to = 0; setTimeout(() => (c.intro.to = 1), 120 + k * 70); });
+    else cards.forEach((c) => { c.intro.x = c.intro.to = 1; c.intro.v = 0; });
     if (games.length) showGame(games[idx], !animate);
   }
   function storeMsg(text, err) {
@@ -561,6 +562,7 @@
     started = true;
     firstRunHints();
     if (q.has("busy")) setBusy(true); // dev: show the launching state
+    if (q.has("goto")) setTimeout(() => setTab(parseInt(q.get("goto"), 10) || 0), parseInt(q.get("at") || "4000", 10)); // dev: switch tab after a delay
     if (q.has("auto")) setTimeout(() => move(parseInt(q.get("auto"), 10) || 1), 500); // dev: simulate a key press
     requestAnimationFrame((n) => { last = n; frame(n); });
   }
