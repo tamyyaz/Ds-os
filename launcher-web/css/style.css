@@ -1,6 +1,9 @@
 /* Darksham Launcher: 1920x1080 stage scaled to the window.
    Dark, cinematic, glass. Accent colour follows the selected game. */
 
+@font-face { font-family: "Sora"; src: url("../fonts/Sora.ttf") format("truetype"); font-weight: 100 800; font-display: swap; }
+@font-face { font-family: "Noto Kufi Arabic"; src: url("../fonts/NotoKufiArabic.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+
 @property --accent { syntax: "<color>"; inherits: true; initial-value: #8ab8ff; }
 @property --deep   { syntax: "<color>"; inherits: true; initial-value: #0b1020; }
 @property --ang    { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
@@ -129,18 +132,31 @@ img { display: block; -webkit-user-drag: none; user-select: none; }
 @keyframes spin { to { --ang: 360deg; } }
 
 /* ---------------------------------------------------------------- pages */
-.page { position: absolute; inset: 150px 96px 140px; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 26px; z-index: 4; text-align: center; }
+.page { position: absolute; inset: 140px 96px 100px; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 22px; z-index: 4; text-align: center; }
 .page.on { display: flex; }
 .page h2 { font-size: 64px; font-weight: 800; letter-spacing: -.01em; }
 .page p { font-size: 30px; color: var(--muted); }
-.tiles { display: flex; gap: 24px; }
-.tile { width: 320px; padding: 26px 20px; border-radius: 26px; }
-.tile b { display: block; font-size: 72px; font-weight: 800; color: var(--accent); line-height: 1.1; }
-.tile span { font-size: 26px; color: var(--muted); }
-.bars { width: 920px; padding: 26px 32px; border-radius: 26px; display: grid; gap: 14px; text-align: start; }
-.bars .r { white-space: nowrap; display: grid; grid-template-columns: 260px 1fr 170px; align-items: center; gap: 18px; font-size: 24px; }
-.bars .t { height: 14px; border-radius: 999px; background: rgba(255, 255, 255, .1); overflow: hidden; }
-.bars .t i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--c), color-mix(in srgb, var(--c) 50%, #fff)); transform-origin: var(--origin, left); }
+.who { display: flex; align-items: center; gap: 28px; }
+.who h2 { font-size: 56px; line-height: 1.1; text-align: start; }
+.who p { margin-top: 6px; font-size: 26px; text-align: start; }
+.avatar.big { width: 112px; height: 112px; font-size: 56px; }
+/* one transparent panel: stats on top, game bars right under them, no empty gaps */
+.panel { width: 1040px; border-radius: 28px; overflow: hidden;
+  background: rgba(255, 255, 255, .035); border: 1px solid rgba(255, 255, 255, .12);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: 0 24px 60px -30px rgba(0, 0, 0, .7); }
+.stats { display: grid; grid-template-columns: 1fr 1fr; }
+.stat { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 22px 16px 20px; }
+.stat + .stat { border-inline-start: 1px solid rgba(255, 255, 255, .1); }
+.stat b { font-size: 68px; font-weight: 800; line-height: 1.05; color: var(--accent); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 24px; color: var(--muted); }
+.bars { border-top: 1px solid rgba(255, 255, 255, .1); }
+.bars .r { display: grid; grid-template-columns: 380px 1fr 150px; align-items: center; gap: 22px; height: 64px; padding: 0 32px; font-size: 24px; white-space: nowrap; text-align: start; }
+.bars .r + .r { border-top: 1px solid rgba(255, 255, 255, .06); }
+.bars .r span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.bars .r span:last-child { text-align: end; font-variant-numeric: tabular-nums; color: var(--muted); }
+.bars .t { height: 12px; border-radius: 999px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.bars .t i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--c), color-mix(in srgb, var(--c) 55%, #fff)); transform-origin: var(--origin, left); }
+[dir="rtl"] .bars .t i { background: linear-gradient(270deg, var(--c), color-mix(in srgb, var(--c) 55%, #fff)); }
 .ghosts { display: flex; gap: 22px; margin-top: 18px; }
 .ghosts i { width: 150px; height: 150px; border-radius: 34px; background: linear-gradient(110deg, rgba(255, 255, 255, .06) 30%, rgba(255, 255, 255, .16) 50%, rgba(255, 255, 255, .06) 70%);
   background-size: 250% 100%; animation: shimmer 2.4s linear infinite; border: 1px solid rgba(255, 255, 255, .1); }
@@ -148,7 +164,8 @@ img { display: block; -webkit-user-drag: none; user-select: none; }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 
 /* ---------------------------------------------------------------- hints + toast */
-.hints { position: absolute; left: 0; right: 0; bottom: 40px; display: flex; justify-content: center; gap: 44px; z-index: 6; font-size: 24px; color: var(--muted); font-weight: 500; }
+.hints { opacity: 0; transition: opacity .8s var(--ease); pointer-events: none; position: absolute; left: 0; right: 0; bottom: 40px; display: flex; justify-content: center; gap: 44px; z-index: 6; font-size: 24px; color: var(--muted); font-weight: 500; }
+.hints.show { opacity: 1; }
 .hints div { display: flex; align-items: center; gap: 12px; }
 .hints kbd { font: 700 22px var(--font); padding: 5px 15px; border-radius: 999px; color: var(--text); background: rgba(255, 255, 255, .14); border: 1px solid rgba(255, 255, 255, .18); }
 .toast { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(.9); padding: 26px 40px; border-radius: 26px; font-size: 30px; font-weight: 600; opacity: 0; pointer-events: none; z-index: 9;

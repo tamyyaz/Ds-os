@@ -171,29 +171,32 @@
   let pillPlaced = false;
   function placePill() { const b = tabBtns[tab]; if (!pillPlaced) { pill.style.transition = "none"; requestAnimationFrame(() => (pill.style.transition = "")); pillPlaced = true; } pill.style.left = b.offsetLeft + "px"; pill.style.width = b.offsetWidth + "px"; tabBtns.forEach((x, i) => x.classList.toggle("on", i === tab)); }
 
+  const hoursText = (h) => `${String(h).replace(/\.0$/, "")} ${t("hours")}`;
   function buildProfile() {
     $("#p-name").textContent = t("player");
-    const total = games.reduce((s, g) => s + g.hours, 0);
-    const tiles = $("#p-tiles"); tiles.replaceChildren();
+    const total = games.reduce((sum, g) => sum + g.hours, 0);
+    $("#p-sub").textContent = `${games.length} ${t("stat_games")} · ${Math.round(total)} ${t("hours")}`;
+    const stats = $("#p-tiles"); stats.replaceChildren();
     [[games.length, t("stat_games")], [Math.round(total), t("stat_hours")]].forEach(([n, label]) => {
-      const tl = el("div", "tile glass", "<b></b><span></span>"); $("span", tl).textContent = label; $("b", tl).dataset.n = n; $("b", tl).textContent = n; tiles.appendChild(tl);
+      const st = el("div", "stat", "<b></b><span></span>"); $("span", st).textContent = label; $("b", st).dataset.n = n; $("b", st).textContent = n; stats.appendChild(st);
     });
     const bars = $("#p-bars"); bars.replaceChildren();
     const max = Math.max(1, ...games.map((g) => g.hours));
     games.slice(0, 5).forEach((g) => {
       const r = el("div", "r", "<span></span><div class='t'><i></i></div><span></span>");
-      const [a, , c] = r.children; a.textContent = g.title; c.textContent = `${String(g.hours).replace(/\.0$/, "")} ${t("hours")}`;
-      const bar = $("i", r); bar.style.width = (g.hours / max * 100) + "%"; bar.style.setProperty("--c", g.accent); bar.style.setProperty("--origin", rtl() ? "right" : "left");
+      const [a, , c] = r.children; a.textContent = g.title; c.textContent = hoursText(g.hours);
+      const bar = $("i", r); bar.style.width = Math.max(1.5, g.hours / max * 100) + "%"; bar.style.setProperty("--c", g.accent); bar.style.setProperty("--origin", rtl() ? "right" : "left");
       bars.appendChild(r);
     });
   }
   function animateProfile() {
-    $$bars().forEach((b, i) => b.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 1100, delay: 200 + i * 90, easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" }));
+    $$bars().forEach((b, i) => b.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 1100, delay: 250 + i * 90, easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" }));
     document.querySelectorAll("#p-tiles b").forEach((b) => {
       const n = +b.dataset.n, t0 = performance.now();
       (function tick(now) { const p = clamp((now - t0) / 1100, 0, 1); b.textContent = Math.round(n * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(tick); })(t0);
     });
     $(".avatar.big").animate([{ transform: "scale(.6)", opacity: 0 }, { transform: "scale(1)", opacity: 1 }], { duration: 800, easing: "cubic-bezier(.34,1.56,.64,1)", fill: "backwards" });
+    $("#p-panel").animate([{ opacity: 0, transform: "translateY(22px)" }, { opacity: 1, transform: "none" }], { duration: 700, easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" });
   }
   const $$bars = () => [...document.querySelectorAll("#p-bars i")];
 
@@ -222,6 +225,19 @@
     }));
     $("#play-key").textContent = key("accept");
   }
+  // The key hints are shown once (first launch), then fade away; F1 shows them again.
+  const hintsEl = $("#hints");
+  let hintTimer = 0;
+  function flashHints(ms) { hintsEl.classList.add("show"); clearTimeout(hintTimer); hintTimer = setTimeout(() => hintsEl.classList.remove("show"), ms); }
+  function firstRunHints() {
+    let seen = false;
+    try { seen = localStorage.getItem("darksham.hints") === "1"; } catch (e) { /* no storage: show every time */ }
+    if (q.has("hints")) seen = false;
+    if (seen || STATIC) return;
+    setTimeout(() => flashHints(9000), 1800);
+    try { localStorage.setItem("darksham.hints", "1"); } catch (e) { /* ignore */ }
+  }
+
   function applyLang() {
     document.documentElement.lang = lang; document.documentElement.dir = rtl() ? "rtl" : "ltr";
     tabBtns.forEach((b) => (b.textContent = t(b.dataset.tab))); $("#play-label").textContent = t("play");
@@ -266,6 +282,7 @@
     else if (k === "Enter" || k === " ") launch();
     else if (k === "e" || k === "E") setTab(tab + 1); else if (k === "q" || k === "Q") setTab(tab - 1);
     else if (k === "F2") { e.preventDefault(); toggleLang(); }
+    else if (k === "F1") { e.preventDefault(); flashHints(6000); }
   });
   let prevBtn = {};
   function pollPad(now) {
@@ -301,6 +318,7 @@
       cards.forEach((c) => setTimeout(() => (c.intro.to = 1), c.delay * 1000));
     }
     started = true;
+    firstRunHints();
     if (q.has("auto")) setTimeout(() => move(parseInt(q.get("auto"), 10) || 1), 500); // dev: simulate a key press
     requestAnimationFrame((n) => { last = n; frame(n); });
   }
