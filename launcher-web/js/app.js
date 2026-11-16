@@ -14,11 +14,11 @@
     ar: { games: "الألعاب", profile: "الملف الشخصي", apps: "التطبيقات", play: "تشغيل", move: "تنقّل", tabs: "تبديل القسم", lang: "EN",
       hours: "ساعة", last: "آخر لعب", today: "اليوم", yesterday: "أمس", days: "قبل %d يوم", never: "لم تُلعب بعد",
       player: "لاعب Darksham", stat_games: "عدد الألعاب", stat_hours: "ساعات اللعب", soon: "قريباً", apps_sub: "التطبيقات قادمة في نسخة لاحقة",
-      demo: "معاينة: لن تُشغَّل «%s» من هنا", empty: "ما لقينا ألعاب" },
+      demo: "معاينة: لن تُشغَّل «%s» من هنا", empty: "ما لقينا ألعاب", launching: "جاري تشغيل «%s»…", busy: "جاري التشغيل", launch_fail: "تعذّر تشغيل «%s»: %s" },
     en: { games: "Games", profile: "Profile", apps: "Apps", play: "Play", move: "Move", tabs: "Switch tab", lang: "عربي",
       hours: "h", last: "Last played", today: "Today", yesterday: "Yesterday", days: "%d days ago", never: "Never played",
       player: "Darksham player", stat_games: "Games", stat_hours: "Hours played", soon: "Coming soon", apps_sub: "Apps arrive in a later version",
-      demo: "Preview: \"%s\" will not start from here", empty: "No games found" },
+      demo: "Preview: \"%s\" will not start from here", empty: "No games found", launching: "Starting \"%s\"…", busy: "Starting", launch_fail: "Could not start \"%s\": %s" },
   };
   let lang = q.get("lang") || "ar";
   const t = (k, ...a) => (T[lang][k] || k).replace(/%[sd]/g, () => a.shift());
@@ -31,8 +31,10 @@
   };
 
   // ------------------------------------------------------------------ data
-  const games = (window.LIBRARY && window.LIBRARY.games) || [];
-  let idx = clamp(parseInt(q.get("select") || "0", 10) || 0, 0, Math.max(0, games.length - 1));
+  let games = [];          // filled by loadLibrary(): from the backend (http) or from library.js (file://)
+  let idx = 0;
+  const API = location.protocol.startsWith("http");
+  const TOKEN = (window.DARKSHAM && window.DARKSHAM.token) || "";
   let tab = ["games", "profile", "apps"].indexOf(q.get("tab") || "games");
   if (tab < 0) tab = clamp(parseInt(q.get("tab"), 10) || 0, 0, 2);
   let pad = false;
@@ -69,7 +71,9 @@
 
   // ------------------------------------------------------------------ cards
   const rowEl = $("#row");
-  const cards = games.map((g, i) => {
+  const cards = [];
+  function buildCards() {
+    games.forEach((g, i) => {
     const c = el("div", "card");
     c.innerHTML = '<div class="glow"></div><div class="art"><img alt="" draggable="false"><div class="name"></div></div><div class="shine"></div><div class="ring"></div>';
     const img = $("img", c);
@@ -77,8 +81,20 @@
     $(".name", c).textContent = g.cover ? "" : g.title;
     c.addEventListener("click", () => { if (tab !== 0) return; if (i === idx) launch(); else select(i); });
     rowEl.appendChild(c);
-    return { el: c, intro: new Spring(STATIC ? 1 : 0, 120, 14), delay: 0.45 + i * 0.08, f: 0 };
-  });
+    cards.push({ el: c, intro: new Spring(STATIC ? 1 : 0, 120, 14), delay: 0.45 + i * 0.08, f: 0 });
+    });
+  }
+
+  async function loadLibrary() {
+    if (API) {
+      try { const r = await fetch("/api/library", { cache: "no-store" }); if (r.ok) return (await r.json()).games || []; } catch (e) { /* fall through */ }
+    }
+    return new Promise((resolve) => {
+      const sc = document.createElement("script"); sc.src = "library.js";
+      sc.onload = () => resolve((window.LIBRARY && window.LIBRARY.games) || []); sc.onerror = () => resolve([]);
+      document.head.appendChild(sc);
+    });
+  }
 
   const STEP = 248, FOCUS = 1.14, EXTRA = 220 * (FOCUS - 1);
   function layoutCards(time, dt) {
@@ -256,11 +272,20 @@
 
   const toast = $("#toast"); let toastTimer = 0;
   function showToast(text) { toast.textContent = text; toast.classList.add("on"); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove("on"), 2600); }
-  function launch() {
-    if (tab !== 0 || !games.length) return;
+  let busy = false;
+  function setBusy(on) { busy = on; $("#play").classList.toggle("busy", on); $("#play-label").textContent = on ? t("busy") : t("play"); }
+  async function launch() {
+    if (tab !== 0 || !games.length || busy) return;
     const g = games[idx]; sfx.ok(); rumble(60, 0.3, 0.5);
     const p = $("#play"); p.classList.add("press"); setTimeout(() => p.classList.remove("press"), 160);
-    if (window.darksham && window.darksham.launch) window.darksham.launch(g.id); else showToast(t("demo", g.title));
+    if (!API || !TOKEN) { showToast(t("demo", g.title)); return; }   // opened from disk: no backend, nothing to start
+    setBusy(true);
+    try {
+      const r = await fetch("/api/launch", { method: "POST", headers: { "Content-Type": "application/json", "X-Darksham-Token": TOKEN }, body: JSON.stringify({ id: g.id }) });
+      const j = await r.json().catch(() => ({}));
+      showToast(j.ok ? t("launching", g.title) : t("launch_fail", g.title, j.message || j.error || r.status));
+    } catch (e) { showToast(t("launch_fail", g.title, String(e))); }
+    setTimeout(() => setBusy(false), 6000);
   }
   $("#play").addEventListener("click", launch);
   $("#fav").addEventListener("click", (e) => e.currentTarget.classList.toggle("on"));
@@ -319,8 +344,15 @@
     }
     started = true;
     firstRunHints();
+    if (q.has("busy")) setBusy(true); // dev: show the launching state
     if (q.has("auto")) setTimeout(() => move(parseInt(q.get("auto"), 10) || 1), 500); // dev: simulate a key press
     requestAnimationFrame((n) => { last = n; frame(n); });
   }
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(begin); else begin();
+  Promise.all([document.fonts && document.fonts.ready, loadLibrary()]).then(([, list]) => {
+    games = list;
+    idx = clamp(parseInt(q.get("select") || "0", 10) || 0, 0, Math.max(0, games.length - 1));
+    row.x = row.to = idx;
+    buildCards();
+    begin();
+  });
 })();

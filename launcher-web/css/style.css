@@ -103,6 +103,9 @@ img { display: block; -webkit-user-drag: none; user-select: none; }
 .play:hover { transform: translateY(-2px) scale(1.02); }
 .play:active, .play.press { transform: scale(.96); }
 .play svg { width: 30px; height: 30px; fill: currentColor; }
+.play .spin { display: none; width: 28px; height: 28px; border-radius: 50%; border: 4px solid rgba(7, 16, 30, .25); border-top-color: #07101e; animation: rot .8s linear infinite; }
+.play.busy .spin { display: block; } .play.busy svg { display: none; } .play.busy { pointer-events: none; filter: saturate(.8); }
+@keyframes rot { to { transform: rotate(360deg); } }
 .play kbd { font: 700 22px var(--font); padding: 4px 14px; border-radius: 999px; background: rgba(7, 16, 30, .16); }
 .play::after { content: ""; position: absolute; top: 0; bottom: 0; width: 90px; left: -140px; transform: skewX(-22deg);
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .65), transparent); animation: sweep 4.2s var(--ease) infinite; }
