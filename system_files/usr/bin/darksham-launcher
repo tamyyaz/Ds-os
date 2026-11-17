@@ -52,7 +52,7 @@ FLAGS=(
     "--user-data-dir=$CACHE/browser"
     --class=darksham-launcher
     --no-first-run --no-default-browser-check --noerrdialogs --disable-infobars
-    --disable-features=Translate,MediaRouter
+    "--disable-features=Translate,MediaRouter"
     --autoplay-policy=no-user-gesture-required
     --overscroll-history-navigation=0
     --ozone-platform-hint=auto

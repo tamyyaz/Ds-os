@@ -52,7 +52,7 @@ has_file /usr/share/plasma/look-and-feel/org.darksham.desktop/contents/splash/Sp
 has_file /usr/share/wallpapers/Darksham/contents/images/1920x1080.png "Darksham wallpaper"
 has_file /usr/share/darksham/branding/logo.png "logo"
 has_file /usr/share/darksham/branding/intro.mp4 "logo intro video"
-ls "$ROOT"/usr/share/icons 2>/dev/null | grep -qi fluent && ok "Fluent icon theme installed" || bad "Fluent icon theme missing"
+if compgen -G "$ROOT/usr/share/icons/*[Ff]luent*" >/dev/null; then ok "Fluent icon theme installed"; else bad "Fluent icon theme missing"; fi
 conf="$(ls "$ROOT"/usr/share/sddm/themes/*breeze*/theme.conf.user 2>/dev/null | head -1)"
 if [ -n "$conf" ] && grep -q Darksham "$conf"; then ok "login screen uses the Darksham wallpaper"; else bad "login screen (SDDM) is not set to the Darksham wallpaper"; fi
 if [ "$FILES_ONLY" = 0 ]; then

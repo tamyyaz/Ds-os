@@ -17,7 +17,8 @@ CHROME="${CHROME_BIN:-$(command -v google-chrome || command -v google-chrome-sta
 echo "python: $($PYTHON --version 2>&1)   chrome: $CHROME"
 
 # a fresh HOME with a fake Steam where the backend looks for it on Linux
-export HOME="$(mktemp -d)"
+HOME="$(mktemp -d)"
+export HOME
 mkdir -p "$HOME/.local/share"
 "$PYTHON" "$HERE/fixture.py" "$HOME/.local/share" >/dev/null
 test -d "$HOME/.local/share/Steam/steamapps"
