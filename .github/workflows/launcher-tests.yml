@@ -58,8 +58,12 @@ jobs:
           bash -n tools/vm/vm-check.sh
           shellcheck -S warning system_files/usr/bin/darksham-launcher system_files/usr/bin/darksham-session \
             tools/vm/vm-check.sh launcher-web/tests/linux_smoke.sh launcher-web/tests/fake_browser.sh
-          desktop-file-validate system_files/usr/share/applications/darksham-launcher.desktop \
-            system_files/usr/share/wayland-sessions/gamescope-session-darksham.desktop
+          desktop-file-validate system_files/usr/share/applications/darksham-launcher.desktop
+          # login session files use DesktopNames=, which desktop-file-validate rejects but display managers need
+          S=system_files/usr/share/wayland-sessions/gamescope-session-darksham.desktop
+          grep -q '^Exec=/usr/bin/darksham-session$' "$S"
+          grep -q '^DesktopNames=gamescope$' "$S"
+          grep -q '^CLIENTCMD="darksham-launcher --kiosk"$' system_files/usr/share/gamescope-session-plus/sessions.d/darksham
 
       - name: Wrapper and real Chrome on a fake Steam
         env:
