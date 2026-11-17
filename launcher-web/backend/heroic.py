@@ -8,7 +8,9 @@ File formats, checked against the source of Ludusavi (which reads the same files
   Amazon (nile)     <root>/store_cache/nile_library.json : {"library": [{"app_name", "title", "install": {"install_path"}}]}
   start a game      heroic://launch/<runner>/<appName>   (runner: legendary, gog or nile)
 <root> is ~/.config/heroic, or ~/.var/app/com.heroicgameslauncher.hgl/config/heroic for the Flatpak.
-Not read (not verified): play time and last played, sideloaded games, and the remote cover art URLs (cards get a generated look).
+Cover art: the library files above carry remote URLs (art_square = tall cover, art_cover / art_background = wide). They are
+kept as game["remote"] and only fetched by the server when the user allows it (see store.remote_art).
+Not read (not verified): play time and last played, and sideloaded games.
 Nothing is copied or sent anywhere.
 """
 import colorsys
@@ -55,12 +57,26 @@ def _look(title):
     return "#%02x%02x%02x" % acc, "#%02x%02x%02x" % drk
 
 
-def _game(runner, app, title, flat):
+def _remote_art(entry):
+    """{'cover': url, 'hero': url} from a Heroic library entry; Heroic may store the word 'fallback' instead of a URL."""
+    if not isinstance(entry, dict):
+        return {}
+    def first(*names):
+        for n in names:
+            v = entry.get(n)
+            if isinstance(v, str) and v.startswith("https://"):
+                return v
+        return None
+    out = {"cover": first("art_square", "art_cover"), "hero": first("art_background", "art_cover")}
+    return {k: v for k, v in out.items() if v}
+
+
+def _game(runner, app, title, flat, remote=None):
     acc, drk = _look(title)
     return {
         "id": "heroic:%s:%s" % (runner, app), "appid": "%s:%s" % (runner, app), "key": "heroic-%s-%s" % (runner, app),
         "title": title, "source": "heroic", "runner": runner, "store": RUNNERS[runner],
-        "hours": 0.0, "last_played": 0, "accent": acc, "dark": drk, "files": {}, "flatpak": flat,
+        "hours": 0.0, "last_played": 0, "accent": acc, "dark": drk, "files": {}, "remote": remote or {}, "flatpak": flat,
     }
 
 
@@ -79,33 +95,36 @@ def scan():
     """Installed Heroic games (alphabetical: Heroic has no play-time data we read)."""
     games, seen = [], set()
 
-    def add(runner, app, title, flat):
+    def add(runner, app, title, flat, remote=None):
         k = (runner, app)
         if k not in seen and APP_RE.match(app) and title:
             seen.add(k)
-            games.append(_game(runner, app, title, flat))
+            games.append(_game(runner, app, title, flat, remote))
 
     for root, flat in roots():
+        epic_lib = _load(root / "store_cache" / "legendary_library.json")
+        epic_art = {str(x.get("app_name")): _remote_art(x) for x in (epic_lib.get("library", []) if isinstance(epic_lib, dict) else []) if isinstance(x, dict)}
         for app, g in _epic(root, flat):
-            add("legendary", str(app), str(g.get("title") or app), flat)
+            add("legendary", str(app), str(g.get("title") or app), flat, epic_art.get(str(app)))
 
         installed = _load(root / "gog_store" / "installed.json")
-        titles = {}
+        titles, gog_art = {}, {}
         for lib in (root / "store_cache" / "gog_library.json", root / "gog_store" / "library.json"):
             data = _load(lib)
             if isinstance(data, dict):
                 titles.update({str(x.get("app_name")): x.get("title") for x in data.get("games", []) if isinstance(x, dict)})
+                gog_art.update({str(x.get("app_name")): _remote_art(x) for x in data.get("games", []) if isinstance(x, dict)})
         if isinstance(installed, dict):
             for x in installed.get("installed", []):
                 if isinstance(x, dict) and x.get("appName") and titles.get(str(x["appName"])):
-                    add("gog", str(x["appName"]), str(titles[str(x["appName"])]), flat)
+                    add("gog", str(x["appName"]), str(titles[str(x["appName"])]), flat, gog_art.get(str(x["appName"])))
 
         nile = _load(root / "store_cache" / "nile_library.json")
         if isinstance(nile, dict):
             for x in nile.get("library", []):
                 inst = x.get("install") if isinstance(x, dict) else None
                 if isinstance(inst, dict) and inst.get("install_path") and x.get("app_name") and x.get("title"):
-                    add("nile", str(x["app_name"]), str(x["title"]), flat)
+                    add("nile", str(x["app_name"]), str(x["title"]), flat, _remote_art(x))
     games.sort(key=lambda g: g["title"].lower())
     return games
 

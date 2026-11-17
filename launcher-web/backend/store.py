@@ -6,9 +6,11 @@ Responses are cached (home 1 h, app details 24 h, images 7 days) and served stal
 """
 import hashlib
 import html as htmllib
+import ipaddress
 import json
 import os
 import re
+import socket
 import time
 import urllib.error
 import urllib.parse
@@ -162,6 +164,72 @@ def clear_cache():
             except OSError:
                 pass
     return removed
+
+
+# Cover art of Heroic games (Epic, GOG, Amazon) is a remote URL in Heroic's own files. It is fetched only when the
+# user keeps "download covers" on, only over https from these store domains, never through a redirect, never from a
+# private address, and cached on disk like the Steam images.
+ART_SUFFIXES = ("epicgames.com", "unrealengine.com", "gog.com", "gog-statics.com", "media-amazon.com", "ssl-images-amazon.com")
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+def _fetch_direct(url, timeout=15):
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    with urllib.request.build_opener(_NoRedirect).open(req, timeout=timeout) as r:
+        return r.read(MAX_IMG + 1), r.headers.get("Content-Type", "")
+
+
+def _public_host(host):
+    """True only if every address the name resolves to is a public one (not loopback, private or link-local)."""
+    try:
+        infos = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
+    except OSError:
+        return False
+    try:
+        return bool(infos) and all(ipaddress.ip_address(i[4][0]).is_global for i in infos)
+    except ValueError:
+        return False
+
+
+def art_url_ok(url):
+    """Is this a URL we would fetch for cover art? (https, a store domain, default port, no credentials)."""
+    if not isinstance(url, str) or len(url) > 2000:
+        return False
+    u = urllib.parse.urlparse(url)
+    host = (u.hostname or "").lower().rstrip(".")
+    try:
+        port = u.port
+    except ValueError:
+        return False
+    return (u.scheme == "https" and bool(host) and port in (None, 443) and u.username is None and u.password is None
+            and any(host == s or host.endswith("." + s) for s in ART_SUFFIXES))
+
+
+def remote_art(url):
+    """(bytes, content-type) of a store cover, cached for 7 days; None when the URL is not allowed or the fetch fails."""
+    if not art_url_ok(url):
+        return None
+    path = ROOT / "img" / hashlib.sha1(url.encode()).hexdigest()
+    meta = path.with_suffix(".type")
+    if path.exists() and time.time() - path.stat().st_mtime < 7 * 86400:
+        return path.read_bytes(), meta.read_text() if meta.exists() else "image/jpeg"
+    if not _public_host(urllib.parse.urlparse(url).hostname):
+        return None
+    try:
+        data, ctype = _fetch_direct(url)
+    except (urllib.error.URLError, OSError):
+        if path.exists():
+            return path.read_bytes(), meta.read_text() if meta.exists() else "image/jpeg"
+        return None
+    if len(data) > MAX_IMG or not ctype.startswith("image/"):
+        return None
+    path.write_bytes(data)
+    meta.write_text(ctype)
+    return data, ctype
 
 
 def art(appid, kind):

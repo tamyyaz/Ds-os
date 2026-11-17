@@ -155,6 +155,12 @@ class HeroicScan(unittest.TestCase):
         self.assertEqual((g["heroic:gog:1207658930"]["title"], g["heroic:gog:1207658930"]["store"]), ("GOG Game", "GOG"))
         self.assertEqual((g["heroic:nile:amzn1.adg.abc"]["title"], g["heroic:nile:amzn1.adg.abc"]["store"]), ("Amazon Game", "Amazon"))
 
+    def test_remote_art_urls_are_read_and_unusable_ones_dropped(self):
+        g = {x["id"]: x for x in heroic.scan()}
+        self.assertEqual(g["heroic:legendary:EpicApp1"]["remote"], {"cover": "https://cdn1.epicgames.com/x/tall.jpg", "hero": "https://cdn1.epicgames.com/x/wide.jpg"})
+        self.assertEqual(g["heroic:gog:1207658930"]["remote"], {"cover": "https://images.gog-statics.com/abc_tall.jpg", "hero": "https://images.gog.com/abc_bg.jpg"})
+        self.assertEqual(g["heroic:nile:amzn1.adg.abc"]["remote"], {})   # 'fallback' and an http URL
+
     def test_dlc_uninstalled_and_unnamed_entries_are_left_out(self):
         ids = {x["id"] for x in heroic.scan()}
         self.assertNotIn("heroic:legendary:EpicDlc1", ids)       # DLC
@@ -172,7 +178,7 @@ class HeroicScan(unittest.TestCase):
         self.assertEqual([x["accent"] for x in a], [x["accent"] for x in b])
         self.assertEqual(len({x["accent"] for x in a}), len(a))
         for x in a:
-            self.assertEqual(x["files"], {})
+            self.assertEqual(x["files"], {})  # remote art is not a local file
             self.assertRegex(x["accent"], r"^#[0-9a-f]{6}$")
 
     def test_broken_files_are_skipped_not_fatal(self):
@@ -186,6 +192,61 @@ class HeroicScan(unittest.TestCase):
         for runner, app in (("sideload", "x"), ("steam", "x"), ("gog", ""), ("gog", "a b"), ("gog", "../x"), ("legendary", "a&b"),
                             ("legendary", "x" * 65), ("gog", "a\nb"), ("", "x")):
             self.assertEqual(heroic.launch(runner, app)[0], False, (runner, app))
+
+
+class RemoteArt(unittest.TestCase):
+    """The only code that talks to Epic, GOG and Amazon. The network is replaced; what matters is what it refuses."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self._root = store.ROOT
+        store.ROOT = Path(self.tmp.name)
+        (store.ROOT / "img").mkdir()
+        self.fetched = []
+        self._f, self._p = store._fetch_direct, store._public_host
+        store._fetch_direct = lambda url, timeout=15: (self.fetched.append(url) or (b"\x89PNG data", "image/png"))
+        store._public_host = lambda host: True
+
+    def tearDown(self):
+        store.ROOT, store._fetch_direct, store._public_host = self._root, self._f, self._p
+        self.tmp.cleanup()
+
+    def test_allowed_store_hosts_are_fetched_and_cached(self):
+        for url in ("https://cdn1.epicgames.com/a.jpg", "https://cdn2.unrealengine.com/a.png", "https://images.gog-statics.com/a.jpg",
+                    "https://images.gog.com/a.jpg", "https://m.media-amazon.com/a.jpg", "https://images-na.ssl-images-amazon.com/a.jpg"):
+            self.assertEqual(store.remote_art(url), (b"\x89PNG data", "image/png"), url)
+        self.fetched.clear()
+        store.remote_art("https://cdn1.epicgames.com/a.jpg")
+        self.assertEqual(self.fetched, [], "the second request is served from the disk cache")
+
+    def test_everything_else_is_refused_without_any_network_call(self):
+        for url in ("http://cdn1.epicgames.com/a.jpg", "https://evil.example/a.jpg", "https://epicgames.com.evil.example/a.jpg",
+                    "https://cdn1.epicgames.com@evil.example/a.jpg", "https://user:pw@cdn1.epicgames.com/a.jpg",
+                    "https://cdn1.epicgames.com:8443/a.jpg", "https://notepicgames.com/a.jpg", "file:///etc/passwd", "ftp://cdn1.epicgames.com/a",
+                    "fallback", "", None, 5, "https://cdn1.epicgames.com/" + "a" * 2100):
+            self.assertIsNone(store.remote_art(url), url)
+        self.assertEqual(self.fetched, [])
+
+    def test_a_name_that_resolves_to_a_private_address_is_refused(self):
+        store._public_host = self._p
+        self._orig = store.socket.getaddrinfo
+        try:
+            for ip in ("127.0.0.1", "10.0.0.5", "192.168.1.9", "169.254.1.1", "::1"):
+                store.socket.getaddrinfo = lambda host, port, type=0, _ip=ip: [(2, 1, 6, "", (_ip, 443))]
+                self.assertIsNone(store.remote_art("https://cdn1.epicgames.com/p-%s.jpg" % ip), ip)
+        finally:
+            store.socket.getaddrinfo = self._orig
+        self.assertEqual(self.fetched, [])
+
+    def test_non_images_and_oversized_answers_are_refused(self):
+        store._fetch_direct = lambda url, timeout=15: (b"<html>", "text/html")
+        self.assertIsNone(store.remote_art("https://cdn1.epicgames.com/a.jpg"))
+        store._fetch_direct = lambda url, timeout=15: (b"x" * (store.MAX_IMG + 1), "image/png")
+        self.assertIsNone(store.remote_art("https://cdn1.epicgames.com/b.jpg"))
+
+    def test_redirects_are_not_followed(self):
+        h = store._NoRedirect()
+        self.assertIsNone(h.redirect_request(None, None, 302, "Found", {}, "https://evil.example/x"))
 
 
 class SettingsFile(unittest.TestCase):
@@ -204,7 +265,7 @@ class SettingsFile(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_missing_file_gives_defaults(self):
-        self.assertEqual(settings.load(), {"region": "us", "sources": {"steam": True, "lutris": True, "heroic": True}})
+        self.assertEqual(settings.load(), {"region": "us", "sources": {"steam": True, "lutris": True, "heroic": True}, "remote_art": True})
 
     def test_default_region_can_come_from_the_environment(self):
         os.environ["DARKSHAM_CC"] = "DE"
@@ -255,6 +316,8 @@ class ServerProtections(unittest.TestCase):
         cls.started, cls.opened, cls.lutris_started, cls.heroic_started = [], [], [], []
         cls._launch, cls._open, cls._llaunch, cls._hlaunch = steam.launch, steam.open_store, lutris.launch, heroic.launch
         heroic.launch = lambda runner, app, flatpak=False: (cls.heroic_started.append((runner, app)) or True, "started")
+        cls.remote_calls, cls._ra = [], store.remote_art
+        store.remote_art = lambda url: (cls.remote_calls.append(url) or (b"\x89PNG fake image", "image/png"))
         steam.launch = lambda appid: (cls.started.append(appid) or True, "started")
         steam.open_store = lambda appid: (cls.opened.append(appid) or True, "opened")
         lutris.launch = lambda gid, flatpak=False: (cls.lutris_started.append(gid) or True, "started")
@@ -267,7 +330,7 @@ class ServerProtections(unittest.TestCase):
     def tearDownClass(cls):
         cls.srv.shutdown()
         steam.find_steam, steam.launch, steam.open_store, lutris.launch, heroic.launch = cls._find, cls._launch, cls._open, cls._llaunch, cls._hlaunch
-        store.CC = cls._cc
+        store.CC, store.remote_art = cls._cc, cls._ra
         for var, old in (("DARKSHAM_LUTRIS", cls._env), ("DARKSHAM_HEROIC", cls._henv), ("DARKSHAM_SETTINGS", cls._senv)):
             if old is None:
                 os.environ.pop(var, None)
@@ -310,8 +373,11 @@ class ServerProtections(unittest.TestCase):
         self.assertEqual(self.req("/art/steam-1003/cover")[0], 404)
         self.assertEqual(self.req("/art/steam-999/cover")[0], 404)
         self.assertEqual(self.req("/art/1001/cover")[0], 404)        # the old id-only form is gone
-        self.assertEqual(self.req("/art/heroic-legendary-EpicApp1/cover")[0], 404)   # Heroic games have no local art
-        self.assertNotIn("cover", games[5])
+        self.assertNotIn("cover", games[5])                                          # Amazon: 'fallback' / http art is not usable
+        self.assertEqual((games[6]["cover"], games[6]["hero"]), ("/art/heroic-legendary-EpicApp1/cover", "/art/heroic-legendary-EpicApp1/hero"))
+        self.assertEqual(self.req("/art/heroic-legendary-EpicApp1/cover")[0], 200)
+        self.assertEqual(self.req("/art/heroic-nile-amzn1.adg.abc/cover")[0], 404)
+        self.assertNotIn("remote", games[6])  # the store URLs themselves never leave the server
 
     def test_static_files_and_traversal(self):
         self.assertEqual(self.req("/css/style.css")[0], 200)
@@ -378,6 +444,7 @@ class ServerProtections(unittest.TestCase):
         self.assertEqual(s["region"], "us")
         self.assertEqual({k: v["enabled"] for k, v in s["sources"].items()}, {"steam": True, "lutris": True, "heroic": True})
         self.assertEqual({k: v["found"] for k, v in s["sources"].items()}, {"steam": 3, "lutris": 2, "heroic": 3})
+        self.assertIs(s["remote_art"], True)
         self.assertIn("sa", s["regions"])
 
     def test_settings_changes_need_the_token_and_valid_values(self):
@@ -433,6 +500,21 @@ class ServerProtections(unittest.TestCase):
         self.assertEqual((code, json.loads(body)["removed"]), (200, 4))
         self.assertTrue((root / "keep.txt").exists() and (root / "json" / "sub" / "keep-inside").exists())
         self.assertFalse((root / "json" / "a.json").exists())
+
+    def test_heroic_covers_come_from_the_right_urls_and_only_when_allowed(self):
+        n = len(self.remote_calls)
+        self.assertEqual(self.req("/art/heroic-legendary-EpicApp1/cover")[0], 200)
+        self.assertEqual(self.req("/art/heroic-gog-1207658930/hero")[0], 200)
+        self.assertEqual(self.remote_calls[n:], ["https://cdn1.epicgames.com/x/tall.jpg", "https://images.gog.com/abc_bg.jpg"])  # tall = cover, background = hero
+        self.assertEqual(self.post("/api/settings", {"remote_art": False})[0], 200)
+        try:
+            games = json.loads(self.req("/api/library")[1])["games"]
+            self.assertFalse([g for g in games if g["source"] == "heroic" and ("cover" in g or "hero" in g)], "no store art URL while downloads are off")
+            self.assertEqual(self.req("/art/heroic-legendary-EpicApp1/cover")[0], 404)
+            self.assertEqual(len(self.remote_calls), n + 2, "nothing is fetched while downloads are off")
+        finally:
+            self.post("/api/settings", {"remote_art": True})
+        self.assertEqual(self.post("/api/settings", {"remote_art": "yes"})[0], 400)
 
     def test_store_open_is_protected_like_launch(self):
         n = len(self.opened)

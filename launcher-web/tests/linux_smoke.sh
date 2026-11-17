@@ -25,6 +25,9 @@ export HOME
 mkdir -p "$HOME/.local/share"
 "$PYTHON" "$HERE/fixture.py" "$HOME/.local/share" >/dev/null
 test -d "$HOME/.local/share/Steam/steamapps"
+# the fixture has fake store URLs: never let a test reach out to Epic, GOG or Amazon
+echo '{"remote_art": false}' > "$HOME/darksham-settings.json"
+export DARKSHAM_SETTINGS="$HOME/darksham-settings.json"
 test -f "$HOME/.local/share/lutris/pga.db"
 test -f "$HOME/.local/share/heroic/gog_store/installed.json"
 # On Linux the backend must find it at its default place (~/.local/share/Steam); elsewhere point it there

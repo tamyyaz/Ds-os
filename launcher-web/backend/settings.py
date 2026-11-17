@@ -3,6 +3,7 @@
 Only known keys with valid values are accepted; anything else is rejected, never stored.
   region   the store's price region, one of REGIONS (a Steam country code)
   sources  which game sources are shown: steam, lutris, heroic (true / false)
+  remote_art  download Heroic covers from the stores' servers (true / false); off = no connection to Epic, GOG or Amazon
 The language is kept by the page itself (it needs no server).
 """
 import json
@@ -25,7 +26,7 @@ def path():
 
 def defaults():
     env = (os.environ.get("DARKSHAM_CC") or "us").lower()
-    return {"region": env if env in REGIONS else "us", "sources": {s: True for s in SOURCES}}
+    return {"region": env if env in REGIONS else "us", "sources": {s: True for s in SOURCES}, "remote_art": True}
 
 
 def _valid(patch):
@@ -39,6 +40,11 @@ def _valid(patch):
                 clean["region"] = value
             else:
                 problems.append("unknown region")
+        elif key == "remote_art":
+            if isinstance(value, bool):
+                clean["remote_art"] = value
+            else:
+                problems.append("remote_art must be true or false")
         elif key == "sources":
             if not isinstance(value, dict):
                 problems.append("sources must be an object")
@@ -65,6 +71,8 @@ def load():
     if "region" in clean:
         data["region"] = clean["region"]
     data["sources"].update(clean.get("sources", {}))
+    if "remote_art" in clean:
+        data["remote_art"] = clean["remote_art"]
     return data
 
 
@@ -78,6 +86,8 @@ def update(patch):
         if "region" in clean:
             data["region"] = clean["region"]
         data["sources"].update(clean.get("sources", {}))
+        if "remote_art" in clean:
+            data["remote_art"] = clean["remote_art"]
         p = path()
         p.parent.mkdir(parents=True, exist_ok=True)
         tmp = p.with_suffix(".tmp")

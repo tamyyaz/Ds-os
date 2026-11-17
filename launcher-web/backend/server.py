@@ -52,13 +52,14 @@ def library():
 def settings_payload():
     s = settings.load()
     found = {"steam": len(steam.scan()), "lutris": len(lutris.scan()), "heroic": len(heroic.scan())}
-    return {"region": s["region"], "regions": settings.REGIONS, "version": VERSION,
+    return {"region": s["region"], "regions": settings.REGIONS, "version": VERSION, "remote_art": s["remote_art"],
             "sources": {n: {"enabled": s["sources"][n], "found": found[n]} for n in settings.SOURCES}}
 
 
 def public(g):
-    out = {k: v for k, v in g.items() if k != "files"}
-    for kind in g["files"]:
+    out = {k: v for k, v in g.items() if k not in ("files", "remote")}
+    kinds = set(g["files"]) | (set(g.get("remote", {})) if settings.load()["remote_art"] else set())
+    for kind in kinds:
         out[kind] = "/art/%s/%s" % (g["key"], kind)
     return out
 
@@ -135,7 +136,11 @@ class Handler(BaseHTTPRequestHandler):
         if m:
             g = next((x for x in (_games or library()) if x["key"] == m.group(1)), None)
             f = g and g["files"].get(m.group(2))
-            return self._file(f, "max-age=3600") if f else self._send(404, {"error": "no art"})
+            if f:
+                return self._file(f, "max-age=3600")
+            url = g and settings.load()["remote_art"] and g.get("remote", {}).get(m.group(2))
+            got = store.remote_art(url) if url else None
+            return self._send(200, got[0], got[1], {"Cache-Control": "max-age=86400"}) if got else self._send(404, {"error": "no art"})
         top = path.lstrip("/").split("/", 1)[0]
         if top in STATIC_DIRS:
             target = (ROOT / path.lstrip("/")).resolve()

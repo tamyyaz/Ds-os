@@ -114,9 +114,15 @@ def build_heroic(root):
         {"appName": "999", "platform": "windows", "install_path": "/games/unknown-title"},
     ]}), encoding="utf-8")
     (h / "store_cache" / "gog_library.json").write_text(json.dumps({"games": [
-        {"app_name": "1207658930", "title": "GOG Game"}, {"app_name": "555", "title": "GOG Not Installed"}]}), encoding="utf-8")
+        {"app_name": "1207658930", "title": "GOG Game", "art_square": "https://images.gog-statics.com/abc_tall.jpg",
+         "art_cover": "https://images.gog-statics.com/abc_wide.jpg", "art_background": "https://images.gog.com/abc_bg.jpg"},
+        {"app_name": "555", "title": "GOG Not Installed"}]}), encoding="utf-8")
+    (h / "store_cache" / "legendary_library.json").write_text(json.dumps({"library": [
+        {"app_name": "EpicApp1", "title": "Epic Game", "art_square": "https://cdn1.epicgames.com/x/tall.jpg",
+         "art_cover": "https://cdn1.epicgames.com/x/wide.jpg"}]}), encoding="utf-8")
     (h / "store_cache" / "nile_library.json").write_text(json.dumps({"library": [
-        {"app_name": "amzn1.adg.abc", "title": "Amazon Game", "install": {"install_path": "/games/amazon", "platform": "Windows"}},
+        {"app_name": "amzn1.adg.abc", "title": "Amazon Game", "art_square": "fallback", "art_cover": "http://insecure.example/x.jpg",
+         "install": {"install_path": "/games/amazon", "platform": "Windows"}},
         {"app_name": "amzn1.adg.def", "title": "Amazon Not Installed", "install": {}},
     ]}), encoding="utf-8")
     return h

@@ -15,7 +15,7 @@
       hours: "ساعة", last: "آخر لعب", today: "اليوم", yesterday: "أمس", days: "قبل %d يوم", never: "لم تُلعب بعد",
       player: "لاعب Darksham", stat_games: "عدد الألعاب", stat_hours: "ساعات اللعب", soon: "قريباً", apps_sub: "التطبيقات قادمة في نسخة لاحقة",
       demo: "معاينة: لن تُشغَّل «%s» من هنا", empty: "ما لقينا ألعاب", settings: "الإعدادات", general_h: "عام", lang_row: "اللغة", region: "منطقة أسعار المتجر", sources_h: "مصادر الألعاب",
-      found: "%d لعبة", on: "مفعّل", off: "مطفّأ", clear_cache: "مسح كاش المتجر", cleared: "تم مسح %d ملف", saved: "انحفظ", save_fail: "تعذّر الحفظ: %s",
+      found: "%d لعبة", remote_art: "تحميل أغلفة Heroic من سيرفرات المتاجر", remote_sub: "بيتصل بسيرفرات Epic وGOG وAmazon", on: "مفعّل", off: "مطفّأ", clear_cache: "مسح كاش المتجر", cleared: "تم مسح %d ملف", saved: "انحفظ", save_fail: "تعذّر الحفظ: %s",
       choose: "اختيار", change: "تغيير", apply: "تطبيق", demo_settings: "الإعدادات بتحتاج الباك اند (شغّل darksham-launcher)", about: "Darksham Launcher", store: "المتجر", details: "التفاصيل", open_steam: "فتح في Steam", shelf: "الأقسام",
       free: "مجاني", in_library: "في مكتبتك", temp_source: "مصدر مؤقت", arabic_yes: "يدعم العربية", loading: "جاري تحميل المتجر…", store_fail: "تعذّر الوصول للمتجر، تحقق من الإنترنت", retry: "إعادة المحاولة",
       opened_steam: "فُتحت صفحة «%s» في Steam", developer: "المطوّر", publisher: "الناشر", release: "الإصدار", genre: "النوع", platforms: "المنصات", no_details: "ما في تفاصيل لهاللعبة",
@@ -25,7 +25,7 @@
       hours: "h", last: "Last played", today: "Today", yesterday: "Yesterday", days: "%d days ago", never: "Never played",
       player: "Darksham player", stat_games: "Games", stat_hours: "Hours played", soon: "Coming soon", apps_sub: "Apps arrive in a later version",
       demo: "Preview: \"%s\" will not start from here", empty: "No games found", settings: "Settings", general_h: "General", lang_row: "Language", region: "Store price region", sources_h: "Game sources",
-      found: "%d games", on: "On", off: "Off", clear_cache: "Clear the store cache", cleared: "Cleared %d files", saved: "Saved", save_fail: "Could not save: %s",
+      found: "%d games", remote_art: "Download Heroic covers from the stores", remote_sub: "connects to Epic, GOG and Amazon servers", on: "On", off: "Off", clear_cache: "Clear the store cache", cleared: "Cleared %d files", saved: "Saved", save_fail: "Could not save: %s",
       choose: "Select", change: "Change", apply: "Apply", demo_settings: "Settings need the backend (run darksham-launcher)", about: "Darksham Launcher", store: "Store", details: "Details", open_steam: "Open in Steam", shelf: "Shelves",
       free: "Free", in_library: "In your library", temp_source: "temporary source", arabic_yes: "Arabic supported", loading: "Loading the store…", store_fail: "Could not reach the store, check your connection", retry: "Retry",
       opened_steam: "Opened \"%s\" in Steam", developer: "Developer", publisher: "Publisher", release: "Release", genre: "Genre", platforms: "Platforms", no_details: "No details for this game",
@@ -93,7 +93,7 @@
     c.innerHTML = '<div class="glow"></div><div class="art"><img alt="" draggable="false"><div class="name"></div></div><div class="shine"></div><div class="ring"></div>';
     const img = $("img", c);
     img.onerror = () => { const fb = g.header || g.capsule; if (fb && !img.dataset.fb) { img.dataset.fb = "1"; img.src = "/store-img?u=" + encodeURIComponent(fb); } };
-    if (g.source === "store") img.onload = () => storeColours(g, img);
+    if (g.source === "store" || g.source === "heroic") img.onload = () => storeColours(g, img);
     const artSrc = g.cover || g.hero || g.capsule || g.header;
     if (artSrc) img.src = artSrc; else img.style.display = "none";
     $(".name", c).textContent = g.cover ? "" : g.title;
@@ -174,7 +174,7 @@
       n.onerror = () => { if (fb && !triedFb && n.dataset.src !== fb) { triedFb = true; n.dataset.src = fb; n.src = fb; } else go(); };
       if (same && n.complete && n.naturalWidth) go();
     };
-    set(heroImgs, g.source === "lutris" || g.source === "heroic" ? "" : g.hero || g.cover, 1.09, g.capsule || g.header);
+    set(heroImgs, g.source === "lutris" ? "" : g.hero || (g.source === "heroic" ? "" : g.cover), 1.09, g.capsule || g.header);
     set(fillImgs, g.blur || g.hero || g.cover, 1.04, g.capsule || g.header);
     front = nextIdx;
   }
@@ -567,6 +567,7 @@
     row.x = row.to = idx;
   }
   const cycleRegion = (dir) => { const d = SET.data; if (!d) return; const i = d.regions.indexOf(d.region); saveSettings({ region: d.regions[(i + dir + d.regions.length) % d.regions.length] }).then(renderSettings); };
+  const toggleRemote = () => saveSettings({ remote_art: !SET.data.remote_art }).then(async () => { await refreshLibrary(); renderSettings(); });
   const toggleSource = (n) => { saveSettings({ sources: { [n]: !SET.data.sources[n].enabled } }).then(renderSettings); };
   async function clearCache() {
     if (!API || !TOKEN) { showToast(t("demo_settings")); return; }
@@ -587,6 +588,7 @@
       const s = d.sources[n];
       rows.push({ id: "src-" + n, label: SRC_NAME[n], sub: t("found", s.found), toggle: s.enabled, step: () => toggleSource(n), act: () => toggleSource(n) });
     }
+    rows.push({ id: "remote", label: t("remote_art"), sub: t("remote_sub"), toggle: d.remote_art, step: () => toggleRemote(), act: () => toggleRemote() });
     rows.push({ head: "" }, { id: "clear", label: t("clear_cache"), btn: true, act: clearCache });
     rows.push({ label: `${t("about")} ${d.version}`, stat: true });
     return rows;
