@@ -45,6 +45,15 @@ python3 backend/server.py --open      # بيشغّل الـbackend على 127.0.
 - **جلسة Gaming Mode تجريبية**: `Darksham Gaming Mode (experimental)` بقائمة جلسات الدخول، بتشغّل `darksham-launcher --kiosk` عبر `gamescope-session-plus` (`/usr/share/gamescope-session-plus/sessions.d/darksham`). إذا `gamescope-session-plus` مو موجود بالصورة (ممكن بصور bazzite المكتبية) الجلسة بترجع لشاشة الدخول وبتعرض إشعار. **ما انجرّبت أبداً**، ولازم تنجرّب على VM أو جهاز.
 - بيئة الاختبار على ويندوز ما بتغطي: Chromium على لينكس، gamescope، `steam` بلينكس، ولا الصور نفسها.
 
+## الاختبارات
+```bash
+python -m unittest discover -s tests -v          # 20 اختبار للباك اند (Steam fake، حمايات السيرفر، المتجر)
+bash tests/linux_smoke.sh                         # wrapper حقيقي + Chrome حقيقي على Steam وهمي (3-4 لقطات)
+```
+- **على لينكس حقيقي (GitHub Actions، `launcher-tests.yml`)**: الاختبارات الـ20، وshellcheck، وفحص ملفات `.desktop`، وتشغيل `darksham-launcher` مع Chrome حقيقي على مكتبة Steam وهمية (أغلفة مولّدة، ما في ألعاب حقيقية). نجحت. بتتشغّل يدوياً (`gh workflow run launcher-tests.yml`) أو لما يتغيّر اللانشر بدون `[skip ci]`.
+- **هاد لا يغطي**: بناء/إقلاع صورة النظام، gamescope، Steam الحقيقي، يد تحكم، أو تعريفات.
+- الاختبارات لقت مشكلتين حقيقيتين وانصلحوا: تجاوز مجلد الملفات الثابتة (`/css/../backend/server.py`)، وأيقونة صورة مكسورة للعبة بدون أغلفة.
+
 ## أمان الـbackend
 - بيسمع على `127.0.0.1` بس، وبيرفض أي `Host` غير `127.0.0.1`/`localhost` (حماية من DNS rebinding).
 - التشغيل بدو **توكن عشوائي** بكل تشغيل، بيوصل بس للصفحة اللي بيقدّمها هو، وبيرفض `Origin` غريب.

@@ -89,7 +89,8 @@
     const img = $("img", c);
     img.onerror = () => { const fb = g.header || g.capsule; if (fb && !img.dataset.fb) { img.dataset.fb = "1"; img.src = "/store-img?u=" + encodeURIComponent(fb); } };
     if (g.source === "store") img.onload = () => storeColours(g, img);
-    img.src = g.cover || g.hero;
+    const artSrc = g.cover || g.hero || g.capsule || g.header;
+    if (artSrc) img.src = artSrc; else img.style.display = "none";
     $(".name", c).textContent = g.cover ? "" : g.title;
     if (g.source === "store") $(".art", c).insertAdjacentHTML("afterend", cardTag(g));
     c.addEventListener("click", () => { if (tab > 1) return; if (i === idx) launch(); else select(i); });
@@ -147,6 +148,12 @@
     const nextIdx = 1 - front;
     const set = (imgs, src, zoomFrom, fb) => {
       const n = imgs[nextIdx], o = imgs[front];
+      if (!src) { // no art for this game: fade the old picture out and leave the coloured glow
+        n.getAnimations().forEach((a) => a.cancel()); o.getAnimations().forEach((a) => a.cancel());
+        n.removeAttribute("src"); n.dataset.src = ""; n.style.opacity = 0;
+        o.animate([{ opacity: parseFloat(getComputedStyle(o).opacity) || 0 }, { opacity: 0 }], { duration: instant ? 0 : 500, fill: "forwards" });
+        return;
+      }
       const same = n.dataset.src === src;
       n.dataset.src = src;
       if (!same) n.src = src;

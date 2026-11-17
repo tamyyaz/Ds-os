@@ -58,5 +58,6 @@ shot() {  # name, query
 shot games-ar "lang=ar&select=0"
 shot games-en "lang=en&select=1"
 shot profile  "lang=ar&tab=profile"
-"$PYTHON" "$HERE/check_png.py" "$OUT/games-ar.png" "$OUT/games-en.png" "$OUT/profile.png"
+shot games-noart "lang=en&select=2"   # a game with no art at all must not show a broken image
+"$PYTHON" "$HERE/check_png.py" "$OUT/games-ar.png" "$OUT/games-en.png" "$OUT/profile.png" "$OUT/games-noart.png"
 echo "ALL OK"
