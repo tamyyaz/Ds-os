@@ -8,3 +8,4 @@ launcher-web/**/*.py text eol=lf
 launcher-web/**/*.js text eol=lf
 launcher-web/**/*.css text eol=lf
 launcher-web/**/*.html text eol=lf
+tools/vm/*.sh text eol=lf
