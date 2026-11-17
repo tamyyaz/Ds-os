@@ -41,7 +41,7 @@ python3 backend/server.py --open      # بيشغّل الـbackend على 127.0.
 ## مضمّن بنظام Darksham OS (تجريبي، غير مختبر على لينكس)
 - بيتنسخ لـ`/usr/share/darksham/launcher` عند بناء الصورة (`build_files/build.sh` القسم 6، والـ`Containerfile` بيمرّر المجلد). بيتشال منه `tools/` وREADME وأي `library.js`.
 - **التشغيل**: الأمر `darksham-launcher` (أو أيقونة "Darksham Launcher" بقائمة التطبيقات) بيختار بورت حر، بيشغّل الـbackend، وبيفتح الواجهة بـChromium بوضع تطبيق ملء الشاشة، وبيسكّر الـbackend لما تسكّر النافذة. سجل التشغيل: `~/.cache/darksham/launcher.log`.
-- **الحزم** (بتتثبّت بالبناء، كل وحدة لحالها وفشلها ما بيوقّف بناء النظام بس بيطلع تحذير): `chromium`، `python3-pillow` (ألوان الألعاب)، `xdotool` و`xorg-x11-utils` (لجلسة gamescope).
+- **الحزم** (بتتثبّت بالبناء، كل وحدة لحالها وفشلها ما بيوقّف بناء النظام بس بيطلع تحذير): `chromium`، `python3-pillow` (ألوان الألعاب)، `xdotool` و`xprop` (لجلسة gamescope؛ بفيدورا 45 اسم الحزمة `xprop` مو `xorg-x11-utils`).
 - **جلسة Gaming Mode تجريبية**: `Darksham Gaming Mode (experimental)` بقائمة جلسات الدخول، بتشغّل `darksham-launcher --kiosk` عبر `gamescope-session-plus` (`/usr/share/gamescope-session-plus/sessions.d/darksham`). إذا `gamescope-session-plus` مو موجود بالصورة (ممكن بصور bazzite المكتبية) الجلسة بترجع لشاشة الدخول وبتعرض إشعار. **ما انجرّبت أبداً**، ولازم تنجرّب على VM أو جهاز.
 - بيئة الاختبار على ويندوز ما بتغطي: Chromium على لينكس، gamescope، `steam` بلينكس، ولا الصور نفسها.
 

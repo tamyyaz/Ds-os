@@ -61,7 +61,7 @@ rm -rf /usr/share/darksham/launcher/tools /usr/share/darksham/launcher/README.md
 chmod 0755 /usr/bin/darksham-launcher /usr/bin/darksham-session
 # حزم التشغيل: كل حزمة لحالها. إذا وحدة فشلت ما بنوقّف بناء النظام، بس بنكتب تحذير واضح
 # (بدونها اللانشر ما بيشتغل). python3 موجود بالأساس.
-for pkg in chromium python3-pillow xdotool xorg-x11-utils; do
+for pkg in chromium python3-pillow xdotool xprop; do
     dnf5 install -y "${pkg}" || echo "::warning::Darksham Launcher: could not install ${pkg}"
 done
 command -v python3 >/dev/null || echo "::warning::Darksham Launcher: python3 is missing in the base image"
