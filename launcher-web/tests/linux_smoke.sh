@@ -24,7 +24,8 @@ HOME="$(mktemp -d)"
 export HOME
 mkdir -p "$HOME/.local/share"
 FIXTURE_OUT="$("$PYTHON" "$HERE/fixture.py" "$HOME/.local/share")"
-export DARKSHAM_APPS_DIRS="$(echo "$FIXTURE_OUT" | tail -1)"   # fake .desktop files: the Apps screen never lists this machine's real apps
+DARKSHAM_APPS_DIRS="$(echo "$FIXTURE_OUT" | tail -1)"
+export DARKSHAM_APPS_DIRS   # fake .desktop files: the Apps screen never lists this machine's real apps
 test -d "$HOME/.local/share/Steam/steamapps"
 # the fixture has fake store URLs: never let a test reach out to Epic, GOG or Amazon
 echo '{"remote_art": false}' > "$HOME/darksham-settings.json"
