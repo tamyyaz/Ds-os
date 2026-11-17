@@ -33,8 +33,10 @@ python3 backend/server.py --open      # بيشغّل الـbackend على 127.0.
 ## مصادر الألعاب
 - **Steam**: مكتبات Steam المثبّتة (أسماء، ساعات، أغلفة، شعارات). التشغيل عبر `steam://rungameid/<id>`.
 - **Lutris** (جديد): بيقرأ قاعدة بيانات Lutris (`~/.local/share/lutris/pga.db`، أو نسخة Flatpak `~/.var/app/net.lutris.Lutris/...`) **بوضع القراءة فقط**، والألعاب المثبّتة بس، مع الأغلفة (`coverart/` ثم `banners/`). التشغيل عبر `lutris lutris:rungameid/<id>`. الصيغ من كود Lutris نفسه، وانفحصت على قاعدة بيانات وهمية. **ما انجرّب مع Lutris حقيقي.**
-- **Heroic (Epic/GOG)**: لسا، لأني ما تأكدت من صيغة ملفاته وأمر التشغيل. مو رح أخمّن.
-- كل لعبة بتظهر بشارة مصدرها، والمصادر بتندمج بقائمة وحدة مرتّبة بآخر لعب. معرّف التشغيل `steam:<رقم>` أو `lutris:<رقم>` بس، وكل مصدر إله أمر تشغيل ثابت.
+- **Heroic** (جديد، Epic وGOG وAmazon): بيقرأ ملفات Heroic **بوضع القراءة فقط**: `installed.json` لـEpic (legendary)، و`gog_store/installed.json` مع `store_cache/gog_library.json` لـGOG، و`store_cache/nile_library.json` لـAmazon، من `~/.config/heroic` أو نسخة Flatpak. التشغيل عبر `heroic://launch/<runner>/<appName>` (الصيغة من كود Heroic نفسه، والملفات من كود Ludusavi اللي بيقرأ نفس الملفات). **ما انجرّب مع Heroic حقيقي.**
+  - **مو مقروء (ما تأكدت من صيغته)**: ساعات اللعب وآخر لعب، الألعاب الـsideload، وأغلفة Heroic (روابط بعيدة). فبطاقات Heroic بدون أغلفة، بلون ثابت من الاسم، وبدون شارتي الساعات وآخر لعب.
+  - بنتجاهل DLC والألعاب بدون اسم، وأسماء التطبيقات بحروف غير آمنة.
+- كل لعبة بتظهر بشارة مصدرها، والمصادر بتندمج بقائمة وحدة مرتّبة بآخر لعب. معرّف التشغيل `steam:<رقم>` أو `lutris:<رقم>` أو `heroic:<legendary|gog|nile>:<اسم آمن>` بس، وكل مصدر إله أمر تشغيل ثابت.
 - تفاصيل اللعبة (زر "…" أو السهم لفوق) للألعاب من Steam فقط (وصف ولقطات من متجر Steam، بتحتاج إنترنت).
 
 ## المتجر (مؤقتاً من Steam)
@@ -54,10 +56,10 @@ python3 backend/server.py --open      # بيشغّل الـbackend على 127.0.
 
 ## الاختبارات
 ```bash
-python -m unittest discover -s tests -v          # 28 اختبار للباك اند (Steam وLutris وهميين، حمايات السيرفر، المتجر)
+python -m unittest discover -s tests -v          # 35 اختبار للباك اند (Steam وLutris وHeroic وهميين، حمايات السيرفر، المتجر)
 bash tests/linux_smoke.sh                         # wrapper حقيقي + Chrome حقيقي على Steam وهمي (3-4 لقطات)
 ```
-- **على لينكس حقيقي (GitHub Actions، `launcher-tests.yml`)**: الاختبارات الـ28، وshellcheck، وفحص ملفات `.desktop`، وتشغيل `darksham-launcher` مع Chrome حقيقي على مكتبة Steam وهمية (أغلفة مولّدة، ما في ألعاب حقيقية). نجحت. بتتشغّل يدوياً (`gh workflow run launcher-tests.yml`) أو لما يتغيّر اللانشر بدون `[skip ci]`.
+- **على لينكس حقيقي (GitHub Actions، `launcher-tests.yml`)**: الاختبارات الـ35، وshellcheck، وفحص ملفات `.desktop`، وتشغيل `darksham-launcher` مع Chrome حقيقي على مكتبة Steam وهمية (أغلفة مولّدة، ما في ألعاب حقيقية). نجحت. بتتشغّل يدوياً (`gh workflow run launcher-tests.yml`) أو لما يتغيّر اللانشر بدون `[skip ci]`.
 - **هاد لا يغطي**: بناء/إقلاع صورة النظام، gamescope، Steam الحقيقي، يد تحكم، أو تعريفات.
 - الاختبارات لقت مشكلتين حقيقيتين وانصلحوا: تجاوز مجلد الملفات الثابتة (`/css/../backend/server.py`)، وأيقونة صورة مكسورة للعبة بدون أغلفة.
 

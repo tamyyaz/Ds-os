@@ -170,7 +170,7 @@
       n.onerror = () => { if (fb && !triedFb && n.dataset.src !== fb) { triedFb = true; n.dataset.src = fb; n.src = fb; } else go(); };
       if (same && n.complete && n.naturalWidth) go();
     };
-    set(heroImgs, g.source === "lutris" ? "" : g.hero || g.cover, 1.09, g.capsule || g.header);
+    set(heroImgs, g.source === "lutris" || g.source === "heroic" ? "" : g.hero || g.cover, 1.09, g.capsule || g.header);
     set(fillImgs, g.blur || g.hero || g.cover, 1.04, g.capsule || g.header);
     front = nextIdx;
   }
@@ -247,13 +247,13 @@
       chips.replaceChildren(...list);
       if (!det) wantDetails(g);
     } else {
-      const srcName = { steam: "Steam", lutris: "Lutris" }[g.source] || "Darksham";
-      const runner = g.runner ? { wine: "Wine", linux: "Linux", dosbox: "DOSBox", libretro: "RetroArch" }[g.runner] || g.runner : "";
-      chips.replaceChildren(
-        chip(ICON.pad, srcName, "src"),
-        ...(runner ? [chip(null, runner)] : []),
+      const srcName = g.source === "heroic" ? g.store || "Heroic" : { steam: "Steam", lutris: "Lutris" }[g.source] || "Darksham";
+      const runner = g.source === "lutris" && g.runner ? { wine: "Wine", linux: "Linux", dosbox: "DOSBox", libretro: "RetroArch" }[g.runner] || g.runner : "";
+      // Heroic does not give us play time or last played (not verified), so those chips are left out for its games
+      const played = g.source === "heroic" ? [] : [
         chip(ICON.clock, `${String(g.hours).replace(/\.0$/, "")} ${t("hours")}`),
-        chip(ICON.cal, `${t("last")}: ${lastText(g.last_played)}`));
+        chip(ICON.cal, `${t("last")}: ${lastText(g.last_played)}`)];
+      chips.replaceChildren(chip(ICON.pad, srcName, "src"), ...(runner ? [chip(null, runner)] : []), ...played);
       // store details exist for Steam games only
       $("#more").style.display = g.source === "steam" ? "" : "none";
     }

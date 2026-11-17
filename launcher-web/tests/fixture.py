@@ -97,7 +97,33 @@ def build_lutris(root):
     return d
 
 
+def build_heroic(root):
+    """A fake Heroic config folder (<root>/heroic): Epic (legendary), GOG and Amazon (nile) files. Returns it."""
+    import json
+    h = Path(root) / "heroic"
+    (h / "legendaryConfig" / "legendary").mkdir(parents=True)
+    (h / "gog_store").mkdir(parents=True)
+    (h / "store_cache").mkdir(parents=True)
+    (h / "legendaryConfig" / "legendary" / "installed.json").write_text(json.dumps({
+        "EpicApp1": {"app_name": "EpicApp1", "title": "Epic Game", "install_path": "/games/epic", "platform": "Windows", "is_dlc": False},
+        "EpicDlc1": {"app_name": "EpicDlc1", "title": "Epic Game DLC", "install_path": "/games/epic", "is_dlc": True},
+        "bad name": {"app_name": "bad name", "title": "Bad Name", "install_path": "/x"},
+    }), encoding="utf-8")
+    (h / "gog_store" / "installed.json").write_text(json.dumps({"installed": [
+        {"appName": "1207658930", "platform": "windows", "install_path": "/games/gog"},
+        {"appName": "999", "platform": "windows", "install_path": "/games/unknown-title"},
+    ]}), encoding="utf-8")
+    (h / "store_cache" / "gog_library.json").write_text(json.dumps({"games": [
+        {"app_name": "1207658930", "title": "GOG Game"}, {"app_name": "555", "title": "GOG Not Installed"}]}), encoding="utf-8")
+    (h / "store_cache" / "nile_library.json").write_text(json.dumps({"library": [
+        {"app_name": "amzn1.adg.abc", "title": "Amazon Game", "install": {"install_path": "/games/amazon", "platform": "Windows"}},
+        {"app_name": "amzn1.adg.def", "title": "Amazon Not Installed", "install": {}},
+    ]}), encoding="utf-8")
+    return h
+
+
 if __name__ == "__main__":
     import sys
     print(build(sys.argv[1]))
     print(build_lutris(sys.argv[1]))
+    print(build_heroic(sys.argv[1]))

@@ -26,9 +26,12 @@ mkdir -p "$HOME/.local/share"
 "$PYTHON" "$HERE/fixture.py" "$HOME/.local/share" >/dev/null
 test -d "$HOME/.local/share/Steam/steamapps"
 test -f "$HOME/.local/share/lutris/pga.db"
+test -f "$HOME/.local/share/heroic/gog_store/installed.json"
 # On Linux the backend must find it at its default place (~/.local/share/Steam); elsewhere point it there
 unset XDG_DATA_HOME
-case "$(uname -s)" in Linux) ;; *) export DARKSHAM_STEAM="$HOME/.local/share/Steam" DARKSHAM_LUTRIS="$HOME/.local/share/lutris" ;; esac
+# Heroic keeps its files under $XDG_CONFIG_HOME/heroic: point that at the fixture folder so the default lookup is exercised
+export XDG_CONFIG_HOME="$HOME/.local/share"
+case "$(uname -s)" in Linux) ;; *) export DARKSHAM_STEAM="$HOME/.local/share/Steam" DARKSHAM_LUTRIS="$HOME/.local/share/lutris" DARKSHAM_HEROIC="$HOME/.local/share/heroic" ;; esac
 
 echo "== 1. the wrapper script"
 export FAKE_URL_OUT="$OUT/wrapper_url.txt"
@@ -62,5 +65,6 @@ shot games-en "lang=en&select=1"
 shot profile  "lang=ar&tab=profile"
 shot games-noart "lang=en&select=3"   # a game with no art at all must not show a broken image
 shot games-lutris "lang=en&select=1"   # a Lutris game next to the Steam ones
-"$PYTHON" "$HERE/check_png.py" "$OUT/games-ar.png" "$OUT/games-en.png" "$OUT/profile.png" "$OUT/games-noart.png" "$OUT/games-lutris.png"
+shot games-heroic "lang=en&select=6"   # an Epic game from Heroic (no art: generated look)
+"$PYTHON" "$HERE/check_png.py" "$OUT/games-ar.png" "$OUT/games-en.png" "$OUT/profile.png" "$OUT/games-noart.png" "$OUT/games-lutris.png" "$OUT/games-heroic.png"
 echo "ALL OK"

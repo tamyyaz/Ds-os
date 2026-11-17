@@ -10,5 +10,5 @@ echo "index status: $code"
 [ "$code" = 200 ] || exit 1
 n="$(curl -s "${url}api/library" | "${PYTHON:-python3}" -c 'import sys,json; print(len(json.load(sys.stdin)["games"]))')"
 echo "games from the API: $n"
-[ "$n" = 5 ] || exit 1
+[ "$n" = 8 ] || exit 1
 echo "$url" > "${FAKE_URL_OUT:?}"
