@@ -14,7 +14,7 @@
     ar: { games: "الألعاب", profile: "الملف الشخصي", apps: "التطبيقات", play: "تشغيل", move: "تنقّل", tabs: "تبديل القسم", lang: "EN",
       hours: "ساعة", last: "آخر لعب", today: "اليوم", yesterday: "أمس", days: "قبل %d يوم", never: "لم تُلعب بعد",
       player: "لاعب Darksham", stat_games: "عدد الألعاب", stat_hours: "ساعات اللعب", soon: "قريباً", apps_sub: "التطبيقات قادمة في نسخة لاحقة",
-      demo: "معاينة: لن تُشغَّل «%s» من هنا", empty: "ما لقينا ألعاب", settings: "الإعدادات", general_h: "عام", lang_row: "اللغة", region: "منطقة أسعار المتجر", sources_h: "مصادر الألعاب",
+      demo: "معاينة: لن تُشغَّل «%s» من هنا", empty: "ما لقينا ألعاب", apps_none: "ما لقينا تطبيقات", apps_none_sub: "التطبيقات بتجي من ملفات .desktop بالنظام (لينكس)", open: "فتح", opening: "جاري فتح «%s»…", settings: "الإعدادات", general_h: "عام", lang_row: "اللغة", region: "منطقة أسعار المتجر", sources_h: "مصادر الألعاب",
       found: "%d لعبة", remote_art: "تحميل أغلفة Heroic من سيرفرات المتاجر", remote_sub: "بيتصل بسيرفرات Epic وGOG وAmazon", on: "مفعّل", off: "مطفّأ", clear_cache: "مسح كاش المتجر", cleared: "تم مسح %d ملف", saved: "انحفظ", save_fail: "تعذّر الحفظ: %s",
       choose: "اختيار", change: "تغيير", apply: "تطبيق", demo_settings: "الإعدادات بتحتاج الباك اند (شغّل darksham-launcher)", about: "Darksham Launcher", store: "المتجر", details: "التفاصيل", open_steam: "فتح في Steam", shelf: "الأقسام",
       free: "مجاني", in_library: "في مكتبتك", temp_source: "مصدر مؤقت", arabic_yes: "يدعم العربية", loading: "جاري تحميل المتجر…", store_fail: "تعذّر الوصول للمتجر، تحقق من الإنترنت", retry: "إعادة المحاولة",
@@ -24,7 +24,7 @@
     en: { games: "Games", profile: "Profile", apps: "Apps", play: "Play", move: "Move", tabs: "Switch tab", lang: "عربي",
       hours: "h", last: "Last played", today: "Today", yesterday: "Yesterday", days: "%d days ago", never: "Never played",
       player: "Darksham player", stat_games: "Games", stat_hours: "Hours played", soon: "Coming soon", apps_sub: "Apps arrive in a later version",
-      demo: "Preview: \"%s\" will not start from here", empty: "No games found", settings: "Settings", general_h: "General", lang_row: "Language", region: "Store price region", sources_h: "Game sources",
+      demo: "Preview: \"%s\" will not start from here", empty: "No games found", apps_none: "No apps found", apps_none_sub: "Apps come from the system's .desktop files (Linux)", open: "Open", opening: "Opening \"%s\"…", settings: "Settings", general_h: "General", lang_row: "Language", region: "Store price region", sources_h: "Game sources",
       found: "%d games", remote_art: "Download Heroic covers from the stores", remote_sub: "connects to Epic, GOG and Amazon servers", on: "On", off: "Off", clear_cache: "Clear the store cache", cleared: "Cleared %d files", saved: "Saved", save_fail: "Could not save: %s",
       choose: "Select", change: "Change", apply: "Apply", demo_settings: "Settings need the backend (run darksham-launcher)", about: "Darksham Launcher", store: "Store", details: "Details", open_steam: "Open in Steam", shelf: "Shelves",
       free: "Free", in_library: "In your library", temp_source: "temporary source", arabic_yes: "Arabic supported", loading: "Loading the store…", store_fail: "Could not reach the store, check your connection", retry: "Retry",
@@ -458,6 +458,7 @@
     $("#page-profile").classList.toggle("on", tab === 2);
     $("#page-apps").classList.toggle("on", tab === 3);
     $("#page-settings").classList.toggle("on", tab === 4);
+    if (tab === 3) openApps(animate);
     if (tab === 4) openSettings(animate);
     if (tab === 0 && !games.length && animate) showToast(t("empty"));
     $("#play-label").textContent = tab === 1 ? t("details") : t("play");
@@ -473,6 +474,7 @@
   function buildHints() {
     const items = [["move", t("move")], ["accept", tab === 1 ? t("details") : t("play")], ["tabs", t("tabs")], ["lang", t("lang")]];
     if (tab === 1) items.splice(1, 0, ["shelf", t("shelf")]);
+    if (tab === 3) { items[1] = ["accept", t("open")]; }
     if (tab === 4) { items[0] = ["shelf", t("choose")]; items.splice(1, 0, ["move", t("change")]); items[2] = ["accept", t("apply")]; }
     if (tab === 0) items.splice(2, 0, ["details", t("details")]);
     $("#hints").replaceChildren(...items.map(([k, label]) => {
@@ -496,9 +498,10 @@
   function applyLang() {
     document.documentElement.lang = lang; document.documentElement.dir = rtl() ? "rtl" : "ltr";
     tabBtns.forEach((b) => (b.textContent = t(b.dataset.tab))); $("#play-label").textContent = tab === 1 ? t("details") : t("play");
-    $("#a-title").textContent = t("soon"); $("#a-sub").textContent = t("apps_sub");
+    $("#a-title").textContent = t("apps_none"); $("#a-sub").textContent = t("apps_none_sub");
     buildHints(); if (games.length) showGame(games[idx], true); if (tab === 2) buildProfile();
     if (tab === 4) renderSettings();
+    if (tab === 3) renderApps();
     if (tab === 1 && store.loaded && store.lang !== lang) { closeDetail(); enterStore(false); }
     else if (tab === 1 && store.loaded) buildShelves();
     requestAnimationFrame(placePill);
@@ -510,7 +513,7 @@
     if (i === idx) { sfx.edge(); rumble(30, 0.2, 0.1); return; }
     idx = i; row.to = i; sfx.move(); rumble(); showGame(games[idx], false);
   }
-  function move(screenDir) { if (tab === 4) { changeRow(screenDir); return; } if (tab > 1 || detailOpen || !games.length) return; select(idx + (rtl() ? -screenDir : screenDir)); }
+  function move(screenDir) { if (tab === 4) { changeRow(screenDir); return; } if (tab === 3) { focusApp(rtl() ? -screenDir : screenDir, 0); return; } if (tab > 1 || detailOpen || !games.length) return; select(idx + (rtl() ? -screenDir : screenDir)); }
 
   const toast = $("#toast"); let toastTimer = 0;
   function showToast(text) { toast.textContent = text; toast.classList.add("on"); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove("on"), 2600); }
@@ -518,6 +521,7 @@
   function setBusy(on) { busy = on; $("#play").classList.toggle("busy", on); $("#play-label").textContent = on ? t("busy") : t("play"); }
   async function launch() {
     if (tab === 4) { activateRow(); return; }
+    if (tab === 3) { openFocusedApp(); return; }
     if (detailOpen) { detailPrimary(); return; }
     if (tab === 1) { if (games.length) openDetail(); return; }
     if (tab !== 0 || !games.length || busy) return;
@@ -537,6 +541,64 @@
   function toggleLang() {
     lang = rtl() ? "en" : "ar"; applyLang(); sfx.tab();
     try { localStorage.setItem("darksham.lang", lang); } catch (e) { /* no storage: the choice just is not remembered */ }
+  }
+
+  // ------------------------------------------------------------------ apps (desktop applications)
+  const APPS = { list: [], focus: 0, cols: 6, rowH: 234 };
+  const appName = (a) => (rtl() && a.name_ar ? a.name_ar : a.name);
+  function hueOf(s) { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
+
+  async function loadApps() {
+    if (!API) { APPS.list = []; return; }
+    try { const r = await fetch("/api/apps", { cache: "no-store" }); APPS.list = r.ok ? (await r.json()).apps || [] : []; } catch (e) { APPS.list = []; }
+  }
+  function renderApps() {
+    const grid = $("#agrid"), has = APPS.list.length > 0;
+    $("#agrid-wrap").style.display = has ? "" : "none";
+    $("#a-title").style.display = $("#a-sub").style.display = has ? "none" : "";
+    APPS.focus = clamp(APPS.focus, 0, Math.max(0, APPS.list.length - 1));
+    grid.replaceChildren(...APPS.list.map((a, i) => {
+      const d = el("div", "app" + (i === APPS.focus ? " on" : ""));
+      const ico = el("div", "ico");
+      const h = hueOf(a.id);
+      ico.style.setProperty("--c1", `hsl(${h} 55% 42%)`); ico.style.setProperty("--c2", `hsl(${(h + 40) % 360} 60% 20%)`);
+      if (a.icon) { const im = el("img"); im.alt = ""; im.src = a.icon; im.onerror = () => { im.remove(); ico.textContent = appName(a).trim().charAt(0).toUpperCase(); }; ico.appendChild(im); }
+      else ico.textContent = appName(a).trim().charAt(0).toUpperCase();
+      const nm = el("span", "nm"); nm.textContent = appName(a);
+      d.append(ico, nm);
+      d.addEventListener("click", () => { APPS.focus = i; renderApps(); openFocusedApp(); });
+      return d;
+    }));
+    scrollApps();
+  }
+  function scrollApps() {
+    const row = Math.floor(APPS.focus / APPS.cols);
+    $("#agrid").style.transform = `translateY(${-Math.max(0, row - 1) * APPS.rowH}px)`;
+  }
+  function openApps(animate) {
+    renderApps();
+    loadApps().then(renderApps);
+    if (animate) $("#page-apps").animate([{ opacity: 0, transform: "translateY(24px)" }, { opacity: 1, transform: "none" }], { duration: 600, easing: "cubic-bezier(.16,1,.3,1)" });
+  }
+  function focusApp(dx, dy) {
+    const n = APPS.list.length; if (!n) return;
+    const next = clamp(APPS.focus + dx + dy * APPS.cols, 0, n - 1);
+    if (next === APPS.focus) { sfx.edge(); return; }
+    APPS.focus = next; sfx.move(); rumble(12, 0.05, 0.15);
+    [...$("#agrid").children].forEach((c, i) => c.classList.toggle("on", i === next));
+    scrollApps();
+  }
+  async function openFocusedApp() {
+    const a = APPS.list[APPS.focus]; if (!a) return;
+    if (!API || !TOKEN) { showToast(t("demo", appName(a))); return; }
+    const tile = $("#agrid").children[APPS.focus]; if (tile) tile.classList.add("busy");
+    sfx.ok(); rumble(40, 0.2, 0.4);
+    try {
+      const r = await fetch("/api/app/launch", { method: "POST", headers: { "Content-Type": "application/json", "X-Darksham-Token": TOKEN }, body: JSON.stringify({ id: a.id }) });
+      const j = await r.json().catch(() => ({}));
+      showToast(j.ok ? t("opening", appName(a)) : t("launch_fail", appName(a), j.message || j.error || r.status));
+    } catch (e) { showToast(t("launch_fail", appName(a), String(e))); }
+    setTimeout(() => { if (tile) tile.classList.remove("busy"); }, 2500);
   }
 
   // ------------------------------------------------------------------ settings
@@ -652,6 +714,7 @@
       else if (k === "ArrowRight") showShot(shotI + (rtl() ? -1 : 1)); else if (k === "ArrowLeft") showShot(shotI + (rtl() ? 1 : -1));
       return;
     }
+    if (tab === 3 && (k === "ArrowUp" || k === "ArrowDown")) { e.preventDefault(); focusApp(0, k === "ArrowDown" ? 1 : -1); return; }
     if (tab === 4 && (k === "ArrowUp" || k === "ArrowDown")) { e.preventDefault(); focusRow(k === "ArrowDown" ? 1 : -1); return; }
     if (tab === 0 && k === "ArrowUp") { e.preventDefault(); openDetail(); return; }
     if (tab === 1 && (k === "ArrowDown" || k === "ArrowUp")) { e.preventDefault(); setShelf(store.shelf + (k === "ArrowDown" ? 1 : -1)); return; }
@@ -673,6 +736,7 @@
     const ay = gp.axes[1] || 0, down = gp.buttons[13]?.pressed || ay > 0.6, up = gp.buttons[12]?.pressed || ay < -0.6;
     if (tab === 1 && !detailOpen) { repeat("d", down, now, () => setShelf(store.shelf + 1)); repeat("u", up, now, () => setShelf(store.shelf - 1)); }
     else if (tab === 4) { repeat("d", down, now, () => focusRow(1)); repeat("u", up, now, () => focusRow(-1)); }
+    else if (tab === 3) { repeat("d", down, now, () => focusApp(0, 1)); repeat("u", up, now, () => focusApp(0, -1)); }
   }
 
   // ------------------------------------------------------------------ loop + start

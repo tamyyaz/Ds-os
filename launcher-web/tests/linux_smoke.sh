@@ -23,7 +23,8 @@ export PYTHONUSERBASE
 HOME="$(mktemp -d)"
 export HOME
 mkdir -p "$HOME/.local/share"
-"$PYTHON" "$HERE/fixture.py" "$HOME/.local/share" >/dev/null
+FIXTURE_OUT="$("$PYTHON" "$HERE/fixture.py" "$HOME/.local/share")"
+export DARKSHAM_APPS_DIRS="$(echo "$FIXTURE_OUT" | tail -1)"   # fake .desktop files: the Apps screen never lists this machine's real apps
 test -d "$HOME/.local/share/Steam/steamapps"
 # the fixture has fake store URLs: never let a test reach out to Epic, GOG or Amazon
 echo '{"remote_art": false}' > "$HOME/darksham-settings.json"
@@ -70,5 +71,6 @@ shot games-noart "lang=en&select=3"   # a game with no art at all must not show 
 shot games-lutris "lang=en&select=1"   # a Lutris game next to the Steam ones
 shot games-heroic "lang=en&select=6"   # an Epic game from Heroic (no art: generated look)
 shot settings "lang=ar&tab=settings&row=4"   # the settings page with the source toggles
-"$PYTHON" "$HERE/check_png.py" "$OUT/games-ar.png" "$OUT/games-en.png" "$OUT/profile.png" "$OUT/games-noart.png" "$OUT/games-lutris.png" "$OUT/games-heroic.png" "$OUT/settings.png"
+shot apps "lang=ar&tab=apps"                  # the apps grid (fake .desktop files)
+"$PYTHON" "$HERE/check_png.py" "$OUT/games-ar.png" "$OUT/games-en.png" "$OUT/profile.png" "$OUT/games-noart.png" "$OUT/games-lutris.png" "$OUT/games-heroic.png" "$OUT/settings.png" "$OUT/apps.png"
 echo "ALL OK"

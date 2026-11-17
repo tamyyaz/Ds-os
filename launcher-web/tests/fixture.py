@@ -128,8 +128,35 @@ def build_heroic(root):
     return h
 
 
+def build_apps(root):
+    """Fake .desktop files in two applications folders (user first, like the desktop). Returns the folders joined like PATH."""
+    import os
+    base = Path(root) / "apps"
+    user, system = base / "user" / "applications", base / "system" / "applications"
+    user.mkdir(parents=True)
+    system.mkdir(parents=True)
+
+    def entry(folder, name, body):
+        (folder / name).write_text("[Desktop Entry]\nType=Application\n" + body, encoding="utf-8")
+
+    entry(system, "firefox.desktop", "Name=Firefox\nName[ar]=\u0641\u0627\u064a\u0631\u0641\u0648\u0643\u0633\nComment=Web browser\nExec=firefox %u\nIcon=firefox\nCategories=Network;WebBrowser;\n")
+    entry(system, "konsole.desktop", "Name=Konsole\nExec=konsole\nIcon=utilities-terminal\nTerminal=false\nCategories=System;TerminalEmulator;\n")
+    entry(system, "htop.desktop", "Name=Htop\nExec=htop\nTerminal=true\n")                     # needs a terminal
+    entry(system, "hidden.desktop", "Name=Hidden\nExec=hidden\nNoDisplay=true\n")               # not for menus
+    entry(system, "steam.desktop", "Name=Steam\nExec=steam\nCategories=Network;Game;\n")        # games live in the library
+    entry(system, "darksham-launcher.desktop", "Name=Darksham Launcher\nExec=darksham-launcher\n")  # this app
+    entry(system, "notinstalled.desktop", "Name=Gone\nExec=gone\nTryExec=definitely-not-installed-xyz\n")
+    (system / "broken.desktop").write_text("this is not a desktop file", encoding="utf-8")
+    (system / "bad name.desktop").write_text("[Desktop Entry]\nType=Application\nName=Bad\nExec=bad\n", encoding="utf-8")
+    entry(system, "dup.desktop", "Name=Dup System\nExec=dup-system\n")
+    entry(user, "dup.desktop", "Name=Dup User\nExec=dup-user\n")                               # the user's copy wins
+    _gradient(base / "system" / "icons" / "hicolor" / "128x128" / "apps" / "firefox.png", (128, 128), (255, 120, 40), (60, 20, 10), fmt="PNG")
+    return str(user) + os.pathsep + str(system)
+
+
 if __name__ == "__main__":
     import sys
     print(build(sys.argv[1]))
     print(build_lutris(sys.argv[1]))
     print(build_heroic(sys.argv[1]))
+    print(build_apps(sys.argv[1]))   # last line: the applications folders, for DARKSHAM_APPS_DIRS

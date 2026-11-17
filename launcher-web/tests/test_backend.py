@@ -20,6 +20,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / "backend"))
 
+import apps  # noqa: E402
 import fixture  # noqa: E402
 import heroic  # noqa: E402
 import lutris  # noqa: E402
@@ -194,6 +195,76 @@ class HeroicScan(unittest.TestCase):
             self.assertEqual(heroic.launch(runner, app)[0], False, (runner, app))
 
 
+class AppsScan(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self._env = os.environ.get("DARKSHAM_APPS_DIRS")
+        os.environ["DARKSHAM_APPS_DIRS"] = fixture.build_apps(self.tmp.name)
+
+    def tearDown(self):
+        if self._env is None:
+            os.environ.pop("DARKSHAM_APPS_DIRS", None)
+        else:
+            os.environ["DARKSHAM_APPS_DIRS"] = self._env
+        self.tmp.cleanup()
+
+    def test_only_real_visible_non_game_apps_are_listed(self):
+        self.assertEqual([a["id"] for a in apps.scan()], ["dup.desktop", "firefox.desktop", "konsole.desktop"])
+
+    def test_the_first_folder_wins_for_the_same_name(self):
+        self.assertEqual({a["id"]: a["name"] for a in apps.scan()}["dup.desktop"], "Dup User")
+
+    def test_icons_are_found_in_the_icon_folders(self):
+        a = {x["id"]: x for x in apps.scan()}
+        self.assertEqual(a["firefox.desktop"]["icon_file"].name, "firefox.png")
+        self.assertIsNone(a["konsole.desktop"]["icon_file"])
+
+    def test_exec_lines_are_split_without_a_shell_and_field_codes_dropped(self):
+        self.assertEqual(apps._exec_argv("firefox %u"), ["firefox"])
+        self.assertEqual(apps._exec_argv("app --name=100%% %U --x"), ["app", "--name=100%", "--x"])
+        self.assertEqual(apps._exec_argv('sh -c "echo hi" %F'), ["sh", "-c", "echo hi"])
+        self.assertEqual(apps._exec_argv("a; rm -rf / && b"), ["a;", "rm", "-rf", "/", "&&", "b"])  # passed as plain words, no shell runs them
+        self.assertEqual(apps._exec_argv('unbalanced "quote'), [])
+        self.assertEqual(apps._exec_argv(""), [])
+
+    def test_launch_really_starts_the_process(self):
+        """No mocks: a fake app whose Exec writes a marker file, started through the Exec-line fallback."""
+        import time
+        marker = Path(self.tmp.name) / "marker.txt"
+        py = sys.executable.replace("\\", "/")
+        folder = Path(self.tmp.name) / "real" / "applications"
+        folder.mkdir(parents=True)
+        (folder / "marker.desktop").write_text(
+            '[Desktop Entry]\nType=Application\nName=Marker\nExec="%s" -c "open(%r, \'w\').write(\'ok\')"\n' % (py, str(marker).replace("\\", "/")), encoding="utf-8")
+        os.environ["DARKSHAM_APPS_DIRS"] = str(folder)
+        real_which, apps.shutil.which = apps.shutil.which, (lambda name, *a, **k: None if name == "gio" else real_which(name, *a, **k))
+        try:
+            app = {x["id"]: x for x in apps.scan()}["marker.desktop"]
+            self.assertEqual(apps.launch(app)[0], True)
+            for _ in range(100):
+                if marker.exists():
+                    break
+                time.sleep(0.1)
+        finally:
+            apps.shutil.which = real_which
+        self.assertTrue(marker.exists() and marker.read_text() == "ok")
+
+    def test_launch_uses_gio_when_present_and_the_exec_line_otherwise(self):
+        calls = []
+        real_popen, real_which = apps.subprocess.Popen, apps.shutil.which
+        apps.subprocess.Popen = lambda cmd, **kw: calls.append((cmd, kw.get("start_new_session"))) or object()
+        try:
+            app = {x["id"]: x for x in apps.scan()}["firefox.desktop"]
+            apps.shutil.which = lambda name, *a, **k: "/usr/bin/gio" if name == "gio" else real_which(name, *a, **k)
+            self.assertEqual(apps.launch(app)[0], True)
+            self.assertEqual(calls[-1][0][:2], ["gio", "launch"])
+            apps.shutil.which = lambda name, *a, **k: None
+            self.assertEqual(apps.launch(app)[0], True)
+            self.assertEqual(calls[-1], (["firefox"], True))
+        finally:
+            apps.subprocess.Popen, apps.shutil.which = real_popen, real_which
+
+
 class RemoteArt(unittest.TestCase):
     """The only code that talks to Epic, GOG and Amazon. The network is replaced; what matters is what it refuses."""
 
@@ -304,6 +375,10 @@ class ServerProtections(unittest.TestCase):
         cls.steam_dir = fixture.build(cls.tmp.name)
         cls.lutris_dir = fixture.build_lutris(cls.tmp.name)
         cls.heroic_dir = fixture.build_heroic(cls.tmp.name)
+        cls._aenv = os.environ.get("DARKSHAM_APPS_DIRS")
+        os.environ["DARKSHAM_APPS_DIRS"] = fixture.build_apps(cls.tmp.name)
+        cls.apps_started, cls._alaunch = [], apps.launch
+        apps.launch = lambda app: (cls.apps_started.append(app["id"]) or True, "started")
         cls._senv, cls._cc = os.environ.get("DARKSHAM_SETTINGS"), store.CC
         os.environ["DARKSHAM_SETTINGS"] = str(Path(cls.tmp.name) / "settings.json")
         cls._env = os.environ.get("DARKSHAM_LUTRIS")
@@ -330,8 +405,8 @@ class ServerProtections(unittest.TestCase):
     def tearDownClass(cls):
         cls.srv.shutdown()
         steam.find_steam, steam.launch, steam.open_store, lutris.launch, heroic.launch = cls._find, cls._launch, cls._open, cls._llaunch, cls._hlaunch
-        store.CC, store.remote_art = cls._cc, cls._ra
-        for var, old in (("DARKSHAM_LUTRIS", cls._env), ("DARKSHAM_HEROIC", cls._henv), ("DARKSHAM_SETTINGS", cls._senv)):
+        store.CC, store.remote_art, apps.launch = cls._cc, cls._ra, cls._alaunch
+        for var, old in (("DARKSHAM_LUTRIS", cls._env), ("DARKSHAM_HEROIC", cls._henv), ("DARKSHAM_SETTINGS", cls._senv), ("DARKSHAM_APPS_DIRS", cls._aenv)):
             if old is None:
                 os.environ.pop(var, None)
             else:
@@ -515,6 +590,40 @@ class ServerProtections(unittest.TestCase):
         finally:
             self.post("/api/settings", {"remote_art": True})
         self.assertEqual(self.post("/api/settings", {"remote_art": "yes"})[0], 400)
+
+    # ---- apps
+    def test_apps_list_icons_and_hidden_entries(self):
+        code, body, _ = self.req("/api/apps")
+        found = json.loads(body)["apps"]
+        self.assertEqual([a["id"] for a in found], ["dup.desktop", "firefox.desktop", "konsole.desktop"])
+        ff = found[1]
+        self.assertEqual((ff["name"], ff["name_ar"], ff["comment"]), ("Firefox", "\u0641\u0627\u064a\u0631\u0641\u0648\u0643\u0633", "Web browser"))
+        self.assertEqual(ff["icon"], "/art/%s/icon" % ff["key"])
+        self.assertNotIn("icon", found[2])          # Konsole: no icon file in the fake icon folders
+        self.assertNotIn("path", ff)                # file system paths never leave the server
+        c, data, headers = self.req(ff["icon"])
+        self.assertEqual(c, 200)
+        self.assertIn("sandbox", headers.get("Content-Security-Policy", ""))
+        self.assertEqual(self.req("/art/app-000000000000/icon")[0], 404)
+        self.assertEqual(self.req("/art/%s/icon" % found[2]["key"])[0], 404)
+        self.assertEqual(self.req("/art/app-zzzz/icon")[0], 404)
+
+    def test_app_launch_needs_the_token_and_a_scanned_id(self):
+        n = len(self.apps_started)
+        self.assertEqual(self.post("/api/app/launch", {"id": "firefox.desktop"}, token=False)[0], 403)
+        self.assertEqual(self.post("/api/app/launch", {"id": "firefox.desktop"}, headers={"Origin": "https://evil.example"})[0], 403)
+        for bad in ("firefox", "../etc/passwd", "a b.desktop", "x.desktop & calc", "", None, 5, ["firefox.desktop"], "x" * 200 + ".desktop", "firefox.desktop\n"):
+            self.assertEqual(self.post("/api/app/launch", {"id": bad})[0], 400, bad)
+        self.assertEqual(self.post("/api/app/launch", ["firefox.desktop"])[0], 400)
+        for skipped in ("htop.desktop", "hidden.desktop", "steam.desktop", "darksham-launcher.desktop", "notinstalled.desktop", "nothing.desktop"):
+            self.assertEqual(self.post("/api/app/launch", {"id": skipped})[0], 404, skipped)
+        self.assertEqual(len(self.apps_started), n, "nothing may start for a refused request")
+
+    def test_app_launch_starts_exactly_the_chosen_app(self):
+        n = len(self.apps_started)
+        code, body, _ = self.post("/api/app/launch", {"id": "firefox.desktop"})
+        self.assertEqual((code, json.loads(body)["name"]), (200, "Firefox"))
+        self.assertEqual(self.apps_started[n:], ["firefox.desktop"])
 
     def test_store_open_is_protected_like_launch(self):
         n = len(self.opened)

@@ -20,6 +20,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import apps  # noqa: E402
 import heroic  # noqa: E402
 import lutris  # noqa: E402
 import settings  # noqa: E402
@@ -36,6 +37,7 @@ mimetypes.add_type("text/javascript", ".js")
 
 _lock = threading.Lock()
 _games = []
+_apps = []
 
 
 def library():
@@ -47,6 +49,20 @@ def library():
             g.setdefault("key", "%s-%s" % (g["source"], g["appid"]))
         _games = sorted(found, key=lambda g: -g["last_played"])
         return _games
+
+
+def app_list():
+    global _apps
+    with _lock:
+        _apps = apps.scan()
+        return _apps
+
+
+def public_app(a):
+    out = {k: a[k] for k in ("id", "key", "name", "name_ar", "comment")}
+    if a["icon_file"]:
+        out["icon"] = "/art/%s/icon" % a["key"]
+    return out
 
 
 def settings_payload():
@@ -90,13 +106,13 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _file(self, path, cache="no-cache"):
+    def _file(self, path, cache="no-cache", extra=None):
         try:
             data = path.read_bytes()
         except OSError:
             return self._send(404, {"error": "not found"})
         ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-        self._send(200, data, ctype, {"Cache-Control": cache})
+        self._send(200, data, ctype, dict({"Cache-Control": cache}, **(extra or {})))
 
     # -- routes
     def do_GET(self):
@@ -109,6 +125,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, html, "text/html; charset=utf-8", {"Cache-Control": "no-store"})
         if path == "/api/settings":
             return self._send(200, settings_payload(), extra={"Cache-Control": "no-store"})
+        if path == "/api/apps":
+            return self._send(200, {"apps": [public_app(a) for a in app_list()]}, extra={"Cache-Control": "no-store"})
         if path == "/api/library":
             return self._send(200, {"games": [public(g) for g in library()]}, extra={"Cache-Control": "no-store"})
         q = parse_qs(urlparse(self.path).query)
@@ -132,6 +150,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/store-img":
             got = store.image((q.get("u") or [""])[0])
             return self._send(200, got[0], got[1], {"Cache-Control": "max-age=86400"}) if got else self._send(404, {"error": "not allowed"})
+        m = re.fullmatch(r"/art/(app-[0-9a-f]{12})/icon", path)
+        if m:  # an app icon (an SVG icon may carry scripts: it is only ever shown in an <img>, and opened directly it is sandboxed)
+            a = next((x for x in (_apps or app_list()) if x["key"] == m.group(1)), None)
+            if a and a["icon_file"]:
+                return self._file(a["icon_file"], "max-age=3600", {"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"})
+            return self._send(404, {"error": "no icon"})
         m = re.fullmatch(r"/art/([A-Za-z0-9_.\-]{1,100})/(cover|hero|logo|blur)", path)
         if m:
             g = next((x for x in (_games or library()) if x["key"] == m.group(1)), None)
@@ -153,7 +177,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return self._send(403, {"error": "bad host"})
         route = urlparse(self.path).path
-        if route not in ("/api/launch", "/api/store/open", "/api/settings", "/api/settings/clear-cache"):
+        if route not in ("/api/launch", "/api/store/open", "/api/settings", "/api/settings/clear-cache", "/api/app/launch"):
             return self._send(404, {"error": "not found"})
         origin = self.headers.get("Origin")
         if origin and urlparse(origin).hostname not in ("127.0.0.1", "localhost"):
@@ -165,6 +189,16 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(min(n, 4096)) or b"{}")
         except ValueError:
             return self._send(400, {"error": "bad json"})
+        if route == "/api/app/launch":
+            app_id = body.get("id") if isinstance(body, dict) else None
+            if not isinstance(app_id, str) or not apps.ID_RE.fullmatch(app_id):
+                return self._send(400, {"ok": False, "message": "bad id"})
+            app = next((a for a in app_list() if a["id"] == app_id), None)
+            if not app:
+                return self._send(404, {"ok": False, "message": "no such app"})
+            ok, msg = apps.launch(app)
+            sys.stderr.write("[launcher] open app %s: %s\n" % (app_id, msg))
+            return self._send(200 if ok else 500, {"ok": ok, "message": msg, "name": app["name"]})
         if route == "/api/settings":
             data, problems = settings.update(body)
             if problems:
@@ -174,13 +208,13 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/api/settings/clear-cache":
             return self._send(200, {"ok": True, "removed": store.clear_cache()})
         if route == "/api/store/open":
-            appid = str(body.get("appid", ""))
+            appid = str((body if isinstance(body, dict) else {}).get("appid", ""))
             if not appid.isdigit() or len(appid) > 12:
                 return self._send(400, {"ok": False, "message": "bad id"})
             ok, msg = steam.open_store(appid)
             sys.stderr.write("[launcher] open store page %s: %s\n" % (appid, msg))
             return self._send(200 if ok else 500, {"ok": ok, "message": msg})
-        m = ID_RE.fullmatch(str(body.get("id", "")))
+        m = ID_RE.fullmatch(str((body if isinstance(body, dict) else {}).get("id", "")))
         if not m:
             return self._send(400, {"ok": False, "message": "bad id"})
         game = next((g for g in library() if g["id"] == m.group(0)), None)
