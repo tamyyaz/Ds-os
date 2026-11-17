@@ -9,3 +9,6 @@ launcher-web/**/*.js text eol=lf
 launcher-web/**/*.css text eol=lf
 launcher-web/**/*.html text eol=lf
 tools/vm/*.sh text eol=lf
+launcher-web/tests/*.sh text eol=lf
+launcher-web/tests/*.py text eol=lf
+.github/workflows/*.yml text eol=lf

@@ -122,7 +122,8 @@ class Handler(BaseHTTPRequestHandler):
         top = path.lstrip("/").split("/", 1)[0]
         if top in STATIC_DIRS:
             target = (ROOT / path.lstrip("/")).resolve()
-            if ROOT in target.parents and target.is_file():
+            # must stay inside the static folder itself, not just inside the project (/css/../backend/server.py)
+            if (ROOT / top).resolve() in target.parents and target.is_file():
                 return self._file(target)
         self._send(404, {"error": "not found"})
 

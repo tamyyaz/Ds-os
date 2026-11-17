@@ -1,0 +1,75 @@
+---
+name: Launcher tests (Linux)
+
+# Runs the launcher's tests on a real Linux machine (a GitHub runner): backend unit tests, shell and desktop
+# file checks, and an end-to-end run of darksham-launcher with real Chrome on a FAKE Steam (generated art,
+# no real games). It does not build or boot the OS image and says nothing about gamescope or real hardware.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'launcher-web/**'
+      - 'system_files/usr/bin/**'
+      - 'system_files/usr/share/applications/**'
+      - 'system_files/usr/share/wayland-sessions/**'
+      - 'system_files/usr/share/gamescope-session-plus/**'
+      - 'tools/vm/**'
+      - '.github/workflows/launcher-tests.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'launcher-web/**'
+      - 'system_files/usr/bin/**'
+      - 'system_files/usr/share/applications/**'
+      - 'system_files/usr/share/wayland-sessions/**'
+      - 'system_files/usr/share/gamescope-session-plus/**'
+      - 'tools/vm/**'
+      - '.github/workflows/launcher-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  launcher:
+    name: Backend, scripts and UI on Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install test tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq desktop-file-utils shellcheck
+          python3 -m pip install --user pillow
+
+      - name: Backend unit tests
+        working-directory: launcher-web
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Shell scripts and desktop files
+        run: |
+          set -x
+          bash -n system_files/usr/bin/darksham-launcher
+          bash -n system_files/usr/bin/darksham-session
+          bash -n system_files/usr/share/gamescope-session-plus/sessions.d/darksham
+          bash -n launcher-web/tests/linux_smoke.sh
+          bash -n tools/vm/vm-check.sh
+          shellcheck -S warning system_files/usr/bin/darksham-launcher system_files/usr/bin/darksham-session \
+            tools/vm/vm-check.sh launcher-web/tests/linux_smoke.sh launcher-web/tests/fake_browser.sh
+          desktop-file-validate system_files/usr/share/applications/darksham-launcher.desktop \
+            system_files/usr/share/wayland-sessions/gamescope-session-darksham.desktop
+
+      - name: Wrapper and real Chrome on a fake Steam
+        env:
+          CHROME_EXTRA: --no-sandbox
+        run: bash launcher-web/tests/linux_smoke.sh "$RUNNER_TEMP/launcher-smoke"
+
+      - name: Keep the screenshots (generated art only)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: launcher-screenshots
+          path: ${{ runner.temp }}/launcher-smoke/*.png
+          if-no-files-found: ignore

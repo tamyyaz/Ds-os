@@ -28,6 +28,8 @@ ART = {  # kind -> candidate file names, best first
 def find_steam(hint=None):
     home = Path.home()
     cands = [hint] if hint else []
+    if os.environ.get("DARKSHAM_STEAM"):  # a Steam installed somewhere unusual (and a fixed folder for tests)
+        cands.append(os.environ["DARKSHAM_STEAM"])
     cands += [
         r"C:\Program Files (x86)\Steam", r"C:\Program Files\Steam",
         home / ".local/share/Steam", home / ".steam/steam",
