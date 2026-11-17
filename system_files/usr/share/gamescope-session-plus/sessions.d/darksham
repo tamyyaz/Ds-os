@@ -1,0 +1,3 @@
+# Darksham Gaming Mode for gamescope-session-plus (experimental, not tested on a real system yet).
+# The launcher is the whole session: it shows the library and the store, and starts games through Steam.
+CLIENTCMD="darksham-launcher --kiosk"

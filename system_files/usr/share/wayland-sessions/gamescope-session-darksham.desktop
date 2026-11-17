@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Darksham Gaming Mode (experimental)
+Comment=The Darksham Launcher as a full-screen session
+Exec=/usr/bin/darksham-session
+Type=Application
+DesktopNames=gamescope

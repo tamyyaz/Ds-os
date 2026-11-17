@@ -15,7 +15,7 @@
 - [x] ثلاث صور: AMD/Intel وNVIDIA حديث وNVIDIA قديم
 - [x] أدوات المطوّر (Docker وVS Code وPodman) من Bazzite-DX
 - [ ] برامج Darksham (ترحيب، إعدادات)
-- [ ] Darksham Launcher
+- [~] Darksham Launcher: مضمّن بالصورة (أمر `darksham-launcher` وأيقونة بقائمة التطبيقات، وجلسة "Gaming Mode" تجريبية). **تجريبي: ما انجرّب على لينكس بعد**، وتشغيل الألعاب بيعتمد على Steam. التفاصيل بـ`launcher-web/README.md`
 - [ ] Darksham Engine مثبّت
 - [ ] Ofuq كخدمة محلية
 

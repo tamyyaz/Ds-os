@@ -1,0 +1,9 @@
+#!/bin/bash
+# Entry point of the "Darksham Gaming Mode" login session (experimental, not tested on a real system yet).
+# It only hands over to gamescope-session-plus, which runs /usr/share/gamescope-session-plus/sessions.d/darksham.
+if ! command -v gamescope-session-plus >/dev/null; then
+    echo "darksham-session: gamescope-session-plus is not installed in this image" >&2
+    command -v notify-send >/dev/null && notify-send -a "Darksham" "Gaming Mode" "gamescope-session-plus is missing in this image" 2>/dev/null
+    exit 1
+fi
+exec gamescope-session-plus darksham

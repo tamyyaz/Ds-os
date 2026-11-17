@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Darksham Launcher
+Name[ar]=لانشر Darksham
+Comment=Games, store and apps
+Comment[ar]=الألعاب والمتجر والتطبيقات
+Exec=/usr/bin/darksham-launcher
+Icon=darksham
+Terminal=false
+Categories=Game;
+Keywords=games;steam;store;launcher;
+StartupWMClass=darksham-launcher

@@ -1,0 +1,10 @@
+# Files that are copied into a Linux image must keep LF line endings (a CRLF shebang breaks a script).
+build_files/*.sh text eol=lf
+system_files/usr/bin/* text eol=lf
+system_files/usr/share/applications/*.desktop text eol=lf
+system_files/usr/share/wayland-sessions/*.desktop text eol=lf
+system_files/usr/share/gamescope-session-plus/sessions.d/* text eol=lf
+launcher-web/**/*.py text eol=lf
+launcher-web/**/*.js text eol=lf
+launcher-web/**/*.css text eol=lf
+launcher-web/**/*.html text eol=lf

@@ -38,6 +38,13 @@ python3 backend/server.py --open      # بيشغّل الـbackend على 127.0.
 - **البيانات**: واجهة Steam العامة للمتجر (بدون تسجيل دخول ولا بيانات حساب)، والصور بتمرّ عبر الـbackend (قائمة مضيفين مسموحة فقط). بتتخزّن مؤقتاً بالقرص (`%LOCALAPPDATA%/darksham/store` أو `~/.cache/darksham/store`): القوائم ساعة، التفاصيل يوم، الصور أسبوع، وبتنعرض من الكاش إذا انقطع الإنترنت. المنطقة (الأسعار) `DARKSHAM_CC` (الافتراضي `us`).
 - **ما انجرّب**: الشراء الفعلي ولا فتح صفحة المتجر بـSteam (انفحصت حماية الطلب بس)، ولا لينكس ولا يد حقيقية. واجهة Steam العامة غير رسمية وممكن تتغيّر.
 
+## مضمّن بنظام Darksham OS (تجريبي، غير مختبر على لينكس)
+- بيتنسخ لـ`/usr/share/darksham/launcher` عند بناء الصورة (`build_files/build.sh` القسم 6، والـ`Containerfile` بيمرّر المجلد). بيتشال منه `tools/` وREADME وأي `library.js`.
+- **التشغيل**: الأمر `darksham-launcher` (أو أيقونة "Darksham Launcher" بقائمة التطبيقات) بيختار بورت حر، بيشغّل الـbackend، وبيفتح الواجهة بـChromium بوضع تطبيق ملء الشاشة، وبيسكّر الـbackend لما تسكّر النافذة. سجل التشغيل: `~/.cache/darksham/launcher.log`.
+- **الحزم** (بتتثبّت بالبناء، كل وحدة لحالها وفشلها ما بيوقّف بناء النظام بس بيطلع تحذير): `chromium`، `python3-pillow` (ألوان الألعاب)، `xdotool` و`xorg-x11-utils` (لجلسة gamescope).
+- **جلسة Gaming Mode تجريبية**: `Darksham Gaming Mode (experimental)` بقائمة جلسات الدخول، بتشغّل `darksham-launcher --kiosk` عبر `gamescope-session-plus` (`/usr/share/gamescope-session-plus/sessions.d/darksham`). إذا `gamescope-session-plus` مو موجود بالصورة (ممكن بصور bazzite المكتبية) الجلسة بترجع لشاشة الدخول وبتعرض إشعار. **ما انجرّبت أبداً**، ولازم تنجرّب على VM أو جهاز.
+- بيئة الاختبار على ويندوز ما بتغطي: Chromium على لينكس، gamescope، `steam` بلينكس، ولا الصور نفسها.
+
 ## أمان الـbackend
 - بيسمع على `127.0.0.1` بس، وبيرفض أي `Host` غير `127.0.0.1`/`localhost` (حماية من DNS rebinding).
 - التشغيل بدو **توكن عشوائي** بكل تشغيل، بيوصل بس للصفحة اللي بيقدّمها هو، وبيرفض `Origin` غريب.

@@ -1,0 +1,82 @@
+#!/bin/bash
+# Darksham Launcher: starts the local backend and shows the UI in a Chromium app window.
+#
+#   darksham-launcher            normal run (fullscreen app window)
+#   darksham-launcher --kiosk    gaming mode (used by the gamescope session)
+#
+# Files: /usr/share/darksham/launcher (read-only, part of the image). Cache and log: ~/.cache/darksham.
+# For tests: DARKSHAM_LAUNCHER_DIR, DARKSHAM_PYTHON, DARKSHAM_BROWSER and DARKSHAM_BROWSER_ARGS override the defaults.
+
+APP="${DARKSHAM_LAUNCHER_DIR:-/usr/share/darksham/launcher}"
+PYTHON="${DARKSHAM_PYTHON:-python3}"
+MODE=window
+for a in "$@"; do
+    case "$a" in
+        --kiosk) MODE=kiosk ;;
+        -h|--help) sed -n '2,8p' "$0"; exit 0 ;;
+    esac
+done
+
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/darksham"
+mkdir -p "$CACHE"
+LOG="$CACHE/launcher.log"
+exec > >(tee -a "$LOG") 2>&1
+echo "== $(date '+%F %T') darksham-launcher ($MODE)"
+
+fail() {
+    echo "darksham-launcher: $*" >&2
+    command -v notify-send >/dev/null && notify-send -a "Darksham Launcher" "Darksham Launcher" "$*" 2>/dev/null
+    exit 1
+}
+
+[ -f "$APP/backend/server.py" ] || fail "launcher files not found in $APP"
+BROWSER="${DARKSHAM_BROWSER:-$(command -v chromium-browser || command -v chromium || command -v google-chrome-stable || true)}"
+[ -n "$BROWSER" ] || fail "no Chromium found (the image build could not install it)"
+
+# a free local port, so two sessions never clash
+PORT="$("$PYTHON" -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')" || fail "python3 is missing"
+
+"$PYTHON" "$APP/backend/server.py" --port "$PORT" &
+BACKEND=$!
+trap 'kill "$BACKEND" 2>/dev/null' EXIT INT TERM
+
+for _ in $(seq 1 60); do
+    curl -sf "http://127.0.0.1:$PORT/api/library" >/dev/null 2>&1 && break
+    kill -0 "$BACKEND" 2>/dev/null || fail "the backend stopped, see $LOG"
+    sleep 0.2
+done
+curl -sf "http://127.0.0.1:$PORT/api/library" >/dev/null 2>&1 || fail "the backend did not start, see $LOG"
+
+FLAGS=(
+    "--app=http://127.0.0.1:$PORT/"
+    "--user-data-dir=$CACHE/browser"
+    --class=darksham-launcher
+    --no-first-run --no-default-browser-check --noerrdialogs --disable-infobars
+    --disable-features=Translate,MediaRouter
+    --autoplay-policy=no-user-gesture-required
+    --overscroll-history-navigation=0
+    --ozone-platform-hint=auto
+)
+if [ "$MODE" = kiosk ]; then
+    FLAGS+=(--kiosk)
+    # Gaming mode: start Steam quietly so launching a game is fast
+    if command -v steam >/dev/null && ! pgrep -x steam >/dev/null; then
+        (nohup steam -silent >/dev/null 2>&1 &)
+    fi
+    # gamescope shows only windows that have STEAM_GAME set; 769 marks the main window of a launcher
+    if command -v xdotool >/dev/null && command -v xprop >/dev/null; then
+        (
+            for _ in $(seq 1 120); do
+                WID="$(xdotool search --class darksham-launcher 2>/dev/null | head -1)"
+                if [ -n "$WID" ]; then xprop -id "$WID" -f STEAM_GAME 32c -set STEAM_GAME 769; break; fi
+                sleep 0.5
+            done
+        ) &
+    fi
+else
+    FLAGS+=(--start-fullscreen)
+fi
+
+# shellcheck disable=SC2086
+"$BROWSER" "${FLAGS[@]}" ${DARKSHAM_BROWSER_ARGS:-}
+echo "browser exited with $?"
