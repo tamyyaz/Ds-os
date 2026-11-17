@@ -28,7 +28,8 @@
       store_note: "The <b>Darksham</b> store is in progress. For now the store is Steam, as a temporary source.",
       sh_featured: "Featured", sh_top_sellers: "Top sellers", sh_specials: "Specials", sh_new_releases: "New releases", sh_coming_soon: "Coming soon", back: "Back", launching: "Starting \"%s\"…", busy: "Starting", launch_fail: "Could not start \"%s\": %s" },
   };
-  let lang = q.get("lang") || "ar";
+  let lang = q.get("lang") || (() => { try { return localStorage.getItem("darksham.lang"); } catch (e) { return null; } })() || "ar";
+  if (!T[lang]) lang = "ar";
   const t = (k, ...a) => (T[lang][k] || k).replace(/%[sd]/g, () => a.shift());
   const rtl = () => lang === "ar";
 
@@ -169,7 +170,7 @@
       n.onerror = () => { if (fb && !triedFb && n.dataset.src !== fb) { triedFb = true; n.dataset.src = fb; n.src = fb; } else go(); };
       if (same && n.complete && n.naturalWidth) go();
     };
-    set(heroImgs, g.hero || g.cover, 1.09, g.capsule || g.header);
+    set(heroImgs, g.source === "lutris" ? "" : g.hero || g.cover, 1.09, g.capsule || g.header);
     set(fillImgs, g.blur || g.hero || g.cover, 1.04, g.capsule || g.header);
     front = nextIdx;
   }
@@ -246,10 +247,15 @@
       chips.replaceChildren(...list);
       if (!det) wantDetails(g);
     } else {
+      const srcName = { steam: "Steam", lutris: "Lutris" }[g.source] || "Darksham";
+      const runner = g.runner ? { wine: "Wine", linux: "Linux", dosbox: "DOSBox", libretro: "RetroArch" }[g.runner] || g.runner : "";
       chips.replaceChildren(
-        chip(ICON.pad, g.source === "steam" ? "Steam" : "Darksham", "src"),
+        chip(ICON.pad, srcName, "src"),
+        ...(runner ? [chip(null, runner)] : []),
         chip(ICON.clock, `${String(g.hours).replace(/\.0$/, "")} ${t("hours")}`),
         chip(ICON.cal, `${t("last")}: ${lastText(g.last_played)}`));
+      // store details exist for Steam games only
+      $("#more").style.display = g.source === "steam" ? "" : "none";
     }
     if (instant) return;
     const ease = "cubic-bezier(.16,1,.3,1)";
@@ -347,15 +353,22 @@
     [...$("#shot-thumbs").children].forEach((d, k) => d.classList.toggle("on", k === shotI));
   }
   async function openDetail() {
-    const g = games[idx]; if (!g || g.source !== "store") return;
+    const g = games[idx]; if (!g || (g.source !== "store" && g.source !== "steam")) return;
+    g.det = g.det || {};
+    const isStore = g.source === "store";
     detailOpen = true; sfx.ok(); rumble(30, 0.15, 0.3);
     $("#detail").classList.add("on");
-    $("#d-title").textContent = g.title; $("#d-open-label").textContent = t("open_steam"); $("#d-open-key").textContent = key("accept");
-    const b = priceBits(g);
-    $("#d-price").innerHTML = '<span dir="ltr">' + (b.off ? `<em>-${b.off}%</em>` : "") + (b.was ? `<s>${b.was}</s>` : "") + b.text + "</span>";
+    $("#d-title").textContent = g.title; $("#d-open-label").textContent = isStore ? t("open_steam") : t("play"); $("#d-open-key").textContent = key("accept");
+    if (isStore) {
+      const b = priceBits(g);
+      $("#d-price").innerHTML = '<span dir="ltr">' + (b.off ? `<em>-${b.off}%</em>` : "") + (b.was ? `<s>${b.was}</s>` : "") + b.text + "</span>";
+    } else {  // an installed game: how long you played instead of a price
+      $("#d-price").innerHTML = '<span class="h"></span><span class="l"></span>';
+      $("#d-price .h").textContent = hoursText(g.hours); $("#d-price .l").textContent = `${t("last")}: ${lastText(g.last_played)}`;
+    }
     $("#d-desc").textContent = ""; $("#d-facts").replaceChildren(); $("#d-chips").replaceChildren(); $("#shot-thumbs").replaceChildren();
     shotList = []; shotImgs.forEach((im) => im.classList.remove("on"));
-    shotImgs[shotFront].src = g.capsule || g.header || ""; shotImgs[shotFront].onload = () => shotImgs[shotFront].classList.add("on");
+    shotImgs[shotFront].src = (isStore ? g.capsule || g.header : g.hero || g.cover) || ""; shotImgs[shotFront].onload = () => shotImgs[shotFront].classList.add("on");
     const det = await getDetails(g);
     if (!detailOpen || games[idx] !== g) return;
     if (!det) { $("#d-desc").textContent = t("no_details"); return; }
@@ -369,6 +382,11 @@
     clearInterval(shotTimer); shotTimer = setInterval(() => showShot(shotI + 1), 4200);
   }
   function closeDetail() { if (!detailOpen) return; detailOpen = false; clearInterval(shotTimer); $("#detail").classList.remove("on"); sfx.tab(); }
+  // the sheet's big button: buy (store item: hand the page to Steam) or play (installed game)
+  function detailPrimary() {
+    const g = games[idx]; if (!g) return;
+    if (g.source === "store") openInSteam(); else { closeDetail(); launch(); }
+  }
   async function openInSteam() {
     const g = games[idx]; if (!g || !API || !TOKEN) { showToast(t("demo", g ? g.title : "")); return; }
     try {
@@ -378,7 +396,8 @@
     } catch (e) { showToast(t("launch_fail", g.title, String(e))); }
     sfx.ok();
   }
-  $("#d-open").addEventListener("click", openInSteam);
+  $("#d-open").addEventListener("click", detailPrimary);
+  $("#more").addEventListener("click", openDetail);
   $("#d-close").addEventListener("click", closeDetail);
   $("#detail").addEventListener("click", (e) => { if (e.target.id === "detail") closeDetail(); });
 
@@ -442,11 +461,12 @@
   }
 
   function key(what) {
-    return { accept: pad ? "A" : "Enter", tabs: pad ? "LB / RB" : "Q / E", lang: pad ? "Y" : "F2", move: pad ? "D-pad" : "← →", shelf: pad ? "D-pad ↑↓" : "↑ ↓", back: pad ? "B" : "Esc" }[what];
+    return { accept: pad ? "A" : "Enter", tabs: pad ? "LB / RB" : "Q / E", lang: pad ? "Y" : "F2", move: pad ? "D-pad" : "← →", shelf: pad ? "D-pad ↑↓" : "↑ ↓", details: pad ? "X" : "↑", back: pad ? "B" : "Esc" }[what];
   }
   function buildHints() {
     const items = [["move", t("move")], ["accept", tab === 1 ? t("details") : t("play")], ["tabs", t("tabs")], ["lang", t("lang")]];
     if (tab === 1) items.splice(1, 0, ["shelf", t("shelf")]);
+    if (tab === 0) items.splice(2, 0, ["details", t("details")]);
     $("#hints").replaceChildren(...items.map(([k, label]) => {
       const d = el("div", "", "<kbd></kbd><span></span>"); $("kbd", d).textContent = key(k); $("span", d).textContent = label; return d;
     }));
@@ -488,7 +508,7 @@
   let busy = false;
   function setBusy(on) { busy = on; $("#play").classList.toggle("busy", on); $("#play-label").textContent = on ? t("busy") : t("play"); }
   async function launch() {
-    if (detailOpen) { openInSteam(); return; }
+    if (detailOpen) { detailPrimary(); return; }
     if (tab === 1) { if (games.length) openDetail(); return; }
     if (tab !== 0 || !games.length || busy) return;
     const g = games[idx]; sfx.ok(); rumble(60, 0.3, 0.5);
@@ -504,7 +524,10 @@
   }
   $("#play").addEventListener("click", launch);
   $("#fav").addEventListener("click", (e) => e.currentTarget.classList.toggle("on"));
-  function toggleLang() { lang = rtl() ? "en" : "ar"; applyLang(); sfx.tab(); }
+  function toggleLang() {
+    lang = rtl() ? "en" : "ar"; applyLang(); sfx.tab();
+    try { localStorage.setItem("darksham.lang", lang); } catch (e) { /* no storage: the choice just is not remembered */ }
+  }
 
   // ------------------------------------------------------------------ input
   const held = {}; // key -> {since, last}
@@ -520,10 +543,11 @@
     const k = e.key;
     if (detailOpen) {
       if (k === "Escape" || k === "Backspace") closeDetail();
-      else if (k === "Enter" || k === " ") openInSteam();
+      else if (k === "Enter" || k === " ") detailPrimary();
       else if (k === "ArrowRight") showShot(shotI + (rtl() ? -1 : 1)); else if (k === "ArrowLeft") showShot(shotI + (rtl() ? 1 : -1));
       return;
     }
+    if (tab === 0 && k === "ArrowUp") { e.preventDefault(); openDetail(); return; }
     if (tab === 1 && (k === "ArrowDown" || k === "ArrowUp")) { e.preventDefault(); setShelf(store.shelf + (k === "ArrowDown" ? 1 : -1)); return; }
     if (k === "ArrowRight") move(1); else if (k === "ArrowLeft") move(-1);
     else if (k === "Enter" || k === " ") launch();
@@ -539,7 +563,7 @@
     if (right || left || gp.buttons.some((b) => b.pressed)) { if (!pad) { pad = true; buildHints(); } }
     repeat("r", right, now, () => move(1)); repeat("l", left, now, () => move(-1));
     const edge = (i, fn) => { const p = !!gp.buttons[i]?.pressed; if (p && !prevBtn[i]) fn(); prevBtn[i] = p; };
-    edge(0, launch); edge(1, closeDetail); edge(5, () => setTab(tab + 1)); edge(4, () => setTab(tab - 1)); edge(3, toggleLang);
+    edge(0, launch); edge(1, closeDetail); edge(5, () => setTab(tab + 1)); edge(4, () => setTab(tab - 1)); edge(3, toggleLang); edge(2, () => { if (tab <= 1 && !detailOpen) openDetail(); });
     const ay = gp.axes[1] || 0, down = gp.buttons[13]?.pressed || ay > 0.6, up = gp.buttons[12]?.pressed || ay < -0.6;
     if (tab === 1 && !detailOpen) { repeat("d", down, now, () => setShelf(store.shelf + 1)); repeat("u", up, now, () => setShelf(store.shelf - 1)); }
   }
@@ -569,6 +593,7 @@
     started = true;
     firstRunHints();
     if (q.has("busy")) setBusy(true); // dev: show the launching state
+    if (q.has("detail") && tab === 0) setTimeout(openDetail, 1200); // dev: open the details of the selected installed game
     if (q.has("goto")) setTimeout(() => setTab(parseInt(q.get("goto"), 10) || 0), parseInt(q.get("at") || "4000", 10)); // dev: switch tab after a delay
     if (q.has("auto")) setTimeout(() => move(parseInt(q.get("auto"), 10) || 1), 500); // dev: simulate a key press
     requestAnimationFrame((n) => { last = n; frame(n); });

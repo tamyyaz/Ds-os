@@ -20,13 +20,14 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import lutris  # noqa: E402
 import steam  # noqa: E402
 import store  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 TOKEN = secrets.token_urlsafe(24)
 STATIC_DIRS = {"css", "js", "fonts", "assets"}
-ID_RE = re.compile(r"^steam:(\d{1,12})$")
+ID_RE = re.compile(r"^(steam|lutris):(\d{1,12})$")
 mimetypes.add_type("font/ttf", ".ttf")
 mimetypes.add_type("text/javascript", ".js")
 
@@ -37,14 +38,14 @@ _games = []
 def library():
     global _games
     with _lock:
-        _games = steam.scan()
+        _games = sorted(steam.scan() + lutris.scan(), key=lambda g: -g["last_played"])
         return _games
 
 
 def public(g):
     out = {k: v for k, v in g.items() if k != "files"}
     for kind in g["files"]:
-        out[kind] = "/art/%s/%s" % (g["appid"], kind)
+        out[kind] = "/art/%s-%s/%s" % (g["source"], g["appid"], kind)
     return out
 
 
@@ -114,10 +115,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/store-img":
             got = store.image((q.get("u") or [""])[0])
             return self._send(200, got[0], got[1], {"Cache-Control": "max-age=86400"}) if got else self._send(404, {"error": "not allowed"})
-        m = re.fullmatch(r"/art/(\d+)/(cover|hero|logo|blur)", path)
+        m = re.fullmatch(r"/art/(steam|lutris)-(\d+)/(cover|hero|logo|blur)", path)
         if m:
-            g = next((x for x in (_games or library()) if x["appid"] == m.group(1)), None)
-            f = g and g["files"].get(m.group(2))
+            g = next((x for x in (_games or library()) if x["source"] == m.group(1) and x["appid"] == m.group(2)), None)
+            f = g and g["files"].get(m.group(3))
             return self._file(f, "max-age=3600") if f else self._send(404, {"error": "no art"})
         top = path.lstrip("/").split("/", 1)[0]
         if top in STATIC_DIRS:
@@ -153,10 +154,13 @@ class Handler(BaseHTTPRequestHandler):
         m = ID_RE.match(str(body.get("id", "")))
         if not m:
             return self._send(400, {"ok": False, "message": "bad id"})
-        game = next((g for g in library() if g["appid"] == m.group(1)), None)
+        game = next((g for g in library() if g["source"] == m.group(1) and g["appid"] == m.group(2)), None)
         if not game:
             return self._send(404, {"ok": False, "message": "game is not installed"})
-        ok, msg = steam.launch(game["appid"])
+        if game["source"] == "lutris":
+            ok, msg = lutris.launch(game["appid"], game.get("flatpak", False))
+        else:
+            ok, msg = steam.launch(game["appid"])
         sys.stderr.write("[launcher] launch %s (%s): %s\n" % (game["title"], game["appid"], msg))
         self._send(200 if ok else 500, {"ok": ok, "message": msg, "title": game["title"]})
 

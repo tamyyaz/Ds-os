@@ -25,8 +25,10 @@ export HOME
 mkdir -p "$HOME/.local/share"
 "$PYTHON" "$HERE/fixture.py" "$HOME/.local/share" >/dev/null
 test -d "$HOME/.local/share/Steam/steamapps"
+test -f "$HOME/.local/share/lutris/pga.db"
 # On Linux the backend must find it at its default place (~/.local/share/Steam); elsewhere point it there
-case "$(uname -s)" in Linux) ;; *) export DARKSHAM_STEAM="$HOME/.local/share/Steam" ;; esac
+unset XDG_DATA_HOME
+case "$(uname -s)" in Linux) ;; *) export DARKSHAM_STEAM="$HOME/.local/share/Steam" DARKSHAM_LUTRIS="$HOME/.local/share/lutris" ;; esac
 
 echo "== 1. the wrapper script"
 export FAKE_URL_OUT="$OUT/wrapper_url.txt"
@@ -58,6 +60,7 @@ shot() {  # name, query
 shot games-ar "lang=ar&select=0"
 shot games-en "lang=en&select=1"
 shot profile  "lang=ar&tab=profile"
-shot games-noart "lang=en&select=2"   # a game with no art at all must not show a broken image
-"$PYTHON" "$HERE/check_png.py" "$OUT/games-ar.png" "$OUT/games-en.png" "$OUT/profile.png" "$OUT/games-noart.png"
+shot games-noart "lang=en&select=3"   # a game with no art at all must not show a broken image
+shot games-lutris "lang=en&select=1"   # a Lutris game next to the Steam ones
+"$PYTHON" "$HERE/check_png.py" "$OUT/games-ar.png" "$OUT/games-en.png" "$OUT/profile.png" "$OUT/games-noart.png" "$OUT/games-lutris.png"
 echo "ALL OK"

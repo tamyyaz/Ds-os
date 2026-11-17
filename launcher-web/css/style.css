@@ -238,3 +238,6 @@ img { display: block; -webkit-user-drag: none; user-select: none; }
 .buy .price s { font-size: 24px; font-weight: 500; opacity: .55; margin-inline-end: 10px; }
 .buy .price em { font-style: normal; font-size: 22px; font-weight: 800; background: #2fbf6b; color: #04150b; padding: 3px 12px; border-radius: 999px; margin-inline-end: 12px; }
 .round svg { fill: none; stroke: var(--text); stroke-width: 2; stroke-linecap: round; }
+
+.buy .price .h { display: block; font-size: 34px; line-height: 1.15; }
+.buy .price .l { display: block; font-size: 22px; font-weight: 500; color: var(--muted); }

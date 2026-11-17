@@ -81,7 +81,7 @@ def _best(cache, names):
 _colour_cache = {}
 
 
-def _colours(path):
+def colours(path):
     """(accent, dark) hex from an image: the most vivid colour, and a deep shade of it."""
     if not (Image and path):
         return "#8ab8ff", "#0b1020"
@@ -122,7 +122,7 @@ def scan(steam=None):
                 continue
             cache = steam / "appcache" / "librarycache" / appid
             files = {kind: _best(cache, names) for kind, names in ART.items()}
-            acc, drk = _colours(files["hero"] or files["cover"])
+            acc, drk = colours(files["hero"] or files["cover"])
             minutes, last = stats.get(appid, (0, int(_value(text, "LastPlayed") or 0)))
             games.append({
                 "id": "steam:" + appid, "appid": appid, "title": name, "source": "steam",

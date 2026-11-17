@@ -4,6 +4,9 @@ Run from launcher-web/:   python -m unittest discover -s tests -v
 No network and no real Steam are used; the launch functions are replaced so nothing is ever started.
 """
 import json
+import os
+import shutil
+import sqlite3
 import sys
 import tempfile
 import threading
@@ -18,6 +21,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / "backend"))
 
 import fixture  # noqa: E402
+import lutris  # noqa: E402
 import server  # noqa: E402
 import steam  # noqa: E402
 import store  # noqa: E402
@@ -72,18 +76,78 @@ class SteamScan(unittest.TestCase):
             self.assertEqual(steam.open_store(bad)[0], False, bad)
 
 
+class LutrisScan(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = fixture.build_lutris(self.tmp.name)
+        self._env = os.environ.get("DARKSHAM_LUTRIS")
+        os.environ["DARKSHAM_LUTRIS"] = str(self.dir)
+
+    def tearDown(self):
+        if self._env is None:
+            os.environ.pop("DARKSHAM_LUTRIS", None)
+        else:
+            os.environ["DARKSHAM_LUTRIS"] = self._env
+        self.tmp.cleanup()
+
+    def test_installed_games_only_most_recent_first(self):
+        games = lutris.scan()
+        self.assertEqual([g["id"] for g in games], ["lutris:5", "lutris:6"])
+        self.assertEqual(games[0]["title"], "Lutris Game A")
+        self.assertEqual((games[0]["source"], games[0]["runner"], games[0]["platform"]), ("lutris", "wine", "Windows"))
+
+    def test_playtime_is_already_in_hours(self):
+        self.assertEqual(lutris.scan()[0]["hours"], 3.5)
+
+    def test_art_prefers_cover_then_banner(self):
+        g = {x["appid"]: x for x in lutris.scan()}
+        self.assertEqual(g["5"]["files"]["cover"].name, "lutris-game-a.jpg")
+        self.assertEqual(g["6"]["files"]["cover"].name, "lutris-game-b.png")
+
+    def test_database_is_opened_read_only(self):
+        before = (self.dir / "pga.db").read_bytes()
+        lutris.scan()
+        self.assertEqual((self.dir / "pga.db").read_bytes(), before)
+
+    def test_older_database_without_optional_columns_still_works(self):
+        db = self.dir / "pga.db"
+        db.unlink()
+        con = sqlite3.connect(db)
+        con.execute("CREATE TABLE games (id INTEGER PRIMARY KEY, name TEXT)")
+        con.execute("INSERT INTO games VALUES (1, 'Old Schema Game')")
+        con.commit()
+        con.close()
+        games = lutris.scan()
+        self.assertEqual([g["title"] for g in games], ["Old Schema Game"])
+        self.assertEqual(games[0]["hours"], 0.0)
+
+    def test_broken_or_missing_database_gives_an_empty_library(self):
+        (self.dir / "pga.db").write_bytes(b"this is not a database")
+        self.assertEqual(lutris.scan(), [])
+        shutil.rmtree(self.dir)
+        self.assertEqual(lutris.scan(), [])
+
+    def test_launch_refuses_anything_but_digits(self):
+        for bad in ("", "5 & calc", "../x", "5;rm", "lutris:5", "-1"):
+            self.assertEqual(lutris.launch(bad)[0], False, bad)
+
+
 class ServerProtections(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
         cls.steam_dir = fixture.build(cls.tmp.name)
+        cls.lutris_dir = fixture.build_lutris(cls.tmp.name)
+        cls._env = os.environ.get("DARKSHAM_LUTRIS")
+        os.environ["DARKSHAM_LUTRIS"] = str(cls.lutris_dir)
         cls._find = steam.find_steam
         steam.find_steam = lambda hint=None: cls.steam_dir
         # never start anything for real: record the calls instead
-        cls.started, cls.opened = [], []
-        cls._launch, cls._open = steam.launch, steam.open_store
+        cls.started, cls.opened, cls.lutris_started = [], [], []
+        cls._launch, cls._open, cls._llaunch = steam.launch, steam.open_store, lutris.launch
         steam.launch = lambda appid: (cls.started.append(appid) or True, "started")
         steam.open_store = lambda appid: (cls.opened.append(appid) or True, "opened")
+        lutris.launch = lambda gid, flatpak=False: (cls.lutris_started.append(gid) or True, "started")
         cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
         cls.port = cls.srv.server_address[1]
         threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
@@ -92,7 +156,11 @@ class ServerProtections(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.srv.shutdown()
-        steam.find_steam, steam.launch, steam.open_store = cls._find, cls._launch, cls._open
+        steam.find_steam, steam.launch, steam.open_store, lutris.launch = cls._find, cls._launch, cls._open, cls._llaunch
+        if cls._env is None:
+            os.environ.pop("DARKSHAM_LUTRIS", None)
+        else:
+            os.environ["DARKSHAM_LUTRIS"] = cls._env
         cls.tmp.cleanup()
 
     def req(self, path, method="GET", body=None, headers=None):
@@ -118,12 +186,17 @@ class ServerProtections(unittest.TestCase):
     def test_library_api_and_art(self):
         code, body, _ = self.req("/api/library")
         games = json.loads(body)["games"]
-        self.assertEqual([g["appid"] for g in games], ["1001", "1002", "1003"])
-        self.assertEqual(games[0]["cover"], "/art/1001/cover")
+        # Steam and Lutris merged, most recently played first (ties keep Steam first)
+        self.assertEqual([g["id"] for g in games], ["steam:1001", "lutris:5", "steam:1002", "steam:1003", "lutris:6"])
+        self.assertEqual(games[0]["cover"], "/art/steam-1001/cover")
+        self.assertEqual(games[1]["cover"], "/art/lutris-5/cover")
         self.assertNotIn("files", games[0])  # file system paths never leave the server
-        self.assertEqual(self.req("/art/1001/cover")[0], 200)
-        self.assertEqual(self.req("/art/1003/cover")[0], 404)
-        self.assertEqual(self.req("/art/999/cover")[0], 404)
+        self.assertEqual(self.req("/art/steam-1001/cover")[0], 200)
+        self.assertEqual(self.req("/art/lutris-5/cover")[0], 200)
+        self.assertEqual(self.req("/art/lutris-6/cover")[0], 200)   # no cover art, the banner is used
+        self.assertEqual(self.req("/art/steam-1003/cover")[0], 404)
+        self.assertEqual(self.req("/art/steam-999/cover")[0], 404)
+        self.assertEqual(self.req("/art/1001/cover")[0], 404)        # the old id-only form is gone
 
     def test_static_files_and_traversal(self):
         self.assertEqual(self.req("/css/style.css")[0], 200)
@@ -144,10 +217,14 @@ class ServerProtections(unittest.TestCase):
 
     def test_launch_validates_the_id(self):
         n = len(self.started)
-        for bad in ("steam:1001 & calc", "steam:../x", "1001", "steam:", "steam:99999999999999", "", None, 5):
+        for bad in ("steam:1001 & calc", "steam:../x", "1001", "steam:", "steam:99999999999999", "", None, 5,
+                    "lutris:5 & calc", "lutris:../x", "lutris:", "gog:1", "steam:1001\nlutris:5"):
             self.assertEqual(self.post("/api/launch", {"id": bad})[0], 400, bad)
         self.assertEqual(self.post("/api/launch", {"id": "steam:4242424"})[0], 404)  # not installed
+        self.assertEqual(self.post("/api/launch", {"id": "lutris:7"})[0], 404)       # in the database but not installed
+        self.assertEqual(self.post("/api/launch", {"id": "lutris:99"})[0], 404)
         self.assertEqual(len(self.started), n)
+        self.assertEqual(self.lutris_started, [])
 
     def test_launch_of_an_installed_game_starts_exactly_that_game(self):
         n = len(self.started)
@@ -155,6 +232,15 @@ class ServerProtections(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertEqual(json.loads(body)["ok"], True)
         self.assertEqual(self.started[n:], ["1002"])
+
+    def test_lutris_launch_goes_to_lutris_not_steam(self):
+        n, m = len(self.started), len(self.lutris_started)
+        code, body, _ = self.post("/api/launch", {"id": "lutris:5"})
+        self.assertEqual(code, 200)
+        self.assertEqual(self.lutris_started[m:], ["5"])
+        self.assertEqual(self.started[n:], [])
+        self.assertEqual(self.post("/api/launch", {"id": "lutris:5"}, token=False)[0], 403)
+        self.assertEqual(self.lutris_started[m:], ["5"], "a refused request must not launch")
 
     def test_store_open_is_protected_like_launch(self):
         n = len(self.opened)

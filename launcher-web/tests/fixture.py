@@ -3,6 +3,7 @@
 Nothing here is real game data or real art. `build(root)` returns the fake Steam folder, laid out
 the way Steam does it on Linux (steamapps/, userdata/<id>/config/localconfig.vdf, appcache/librarycache/<appid>/).
 """
+import sqlite3
 from pathlib import Path
 
 from PIL import Image, ImageDraw
@@ -77,6 +78,26 @@ def build(root):
     return steam
 
 
+def build_lutris(root):
+    """A fake Lutris data folder (<root>/lutris) with pga.db, cover art and a banner. Returns the folder."""
+    d = Path(root) / "lutris"
+    d.mkdir(parents=True)
+    con = sqlite3.connect(d / "pga.db")
+    con.execute("CREATE TABLE games (id INTEGER PRIMARY KEY, name TEXT, slug TEXT, runner TEXT, platform TEXT, "
+                "installed INTEGER, lastplayed INTEGER, playtime REAL, directory TEXT, service TEXT, service_id TEXT, configpath TEXT)")
+    con.executemany("INSERT INTO games (id, name, slug, runner, platform, installed, lastplayed, playtime) VALUES (?,?,?,?,?,?,?,?)", [
+        (5, "Lutris Game A", "lutris-game-a", "wine", "Windows", 1, 1755000000, 3.5),
+        (6, "Lutris Game B", "lutris-game-b", "linux", "Linux", 1, 0, 0),
+        (7, "Not Installed", "not-installed", "wine", "Windows", 0, 1700000000, 9.0),
+    ])
+    con.commit()
+    con.close()
+    _gradient(d / "coverart" / "lutris-game-a.jpg", (264, 352), (90, 200, 120), (10, 40, 30))
+    _gradient(d / "banners" / "lutris-game-b.png", (184, 69), (200, 90, 90), (40, 10, 10), fmt="PNG")
+    return d
+
+
 if __name__ == "__main__":
     import sys
     print(build(sys.argv[1]))
+    print(build_lutris(sys.argv[1]))

@@ -30,6 +30,13 @@ python3 backend/server.py --open      # بيشغّل الـbackend على 127.0.
 - خيارات بالرابط للتجربة: `?lang=en &select=2 &tab=profile &static=1 &auto=1 &busy=1 &hints=1`.
 - المفاتيح: ← → تنقل، Enter تشغيل، Q/E تبديل القسم، F2 لغة، F1 تلميحات. اليد: D-pad أو العصا، A، LB/RB، Y.
 
+## مصادر الألعاب
+- **Steam**: مكتبات Steam المثبّتة (أسماء، ساعات، أغلفة، شعارات). التشغيل عبر `steam://rungameid/<id>`.
+- **Lutris** (جديد): بيقرأ قاعدة بيانات Lutris (`~/.local/share/lutris/pga.db`، أو نسخة Flatpak `~/.var/app/net.lutris.Lutris/...`) **بوضع القراءة فقط**، والألعاب المثبّتة بس، مع الأغلفة (`coverart/` ثم `banners/`). التشغيل عبر `lutris lutris:rungameid/<id>`. الصيغ من كود Lutris نفسه، وانفحصت على قاعدة بيانات وهمية. **ما انجرّب مع Lutris حقيقي.**
+- **Heroic (Epic/GOG)**: لسا، لأني ما تأكدت من صيغة ملفاته وأمر التشغيل. مو رح أخمّن.
+- كل لعبة بتظهر بشارة مصدرها، والمصادر بتندمج بقائمة وحدة مرتّبة بآخر لعب. معرّف التشغيل `steam:<رقم>` أو `lutris:<رقم>` بس، وكل مصدر إله أمر تشغيل ثابت.
+- تفاصيل اللعبة (زر "…" أو السهم لفوق) للألعاب من Steam فقط (وصف ولقطات من متجر Steam، بتحتاج إنترنت).
+
 ## المتجر (مؤقتاً من Steam)
 هدفنا متجر Darksham الخاص، وهو **قيد العمل**. حالياً تبويب "المتجر" بيعرض متجر Steam كمصدر مؤقت، وبنية الـbackend (`backend/store.py`) مجهّزة لإضافة مصادر ثانية (Epic المجانية، GOG، itch، ومتجر Darksham) بدون تغيير الواجهة.
 - **الأقسام** (↑↓ أو أزرار القسم): مميّز، الأكثر مبيعاً، عروض، إصدارات جديدة، قريباً. بطاقات 2:3 مع السعر ونسبة الخصم.
@@ -47,10 +54,10 @@ python3 backend/server.py --open      # بيشغّل الـbackend على 127.0.
 
 ## الاختبارات
 ```bash
-python -m unittest discover -s tests -v          # 20 اختبار للباك اند (Steam fake، حمايات السيرفر، المتجر)
+python -m unittest discover -s tests -v          # 28 اختبار للباك اند (Steam وLutris وهميين، حمايات السيرفر، المتجر)
 bash tests/linux_smoke.sh                         # wrapper حقيقي + Chrome حقيقي على Steam وهمي (3-4 لقطات)
 ```
-- **على لينكس حقيقي (GitHub Actions، `launcher-tests.yml`)**: الاختبارات الـ20، وshellcheck، وفحص ملفات `.desktop`، وتشغيل `darksham-launcher` مع Chrome حقيقي على مكتبة Steam وهمية (أغلفة مولّدة، ما في ألعاب حقيقية). نجحت. بتتشغّل يدوياً (`gh workflow run launcher-tests.yml`) أو لما يتغيّر اللانشر بدون `[skip ci]`.
+- **على لينكس حقيقي (GitHub Actions، `launcher-tests.yml`)**: الاختبارات الـ28، وshellcheck، وفحص ملفات `.desktop`، وتشغيل `darksham-launcher` مع Chrome حقيقي على مكتبة Steam وهمية (أغلفة مولّدة، ما في ألعاب حقيقية). نجحت. بتتشغّل يدوياً (`gh workflow run launcher-tests.yml`) أو لما يتغيّر اللانشر بدون `[skip ci]`.
 - **هاد لا يغطي**: بناء/إقلاع صورة النظام، gamescope، Steam الحقيقي، يد تحكم، أو تعريفات.
 - الاختبارات لقت مشكلتين حقيقيتين وانصلحوا: تجاوز مجلد الملفات الثابتة (`/css/../backend/server.py`)، وأيقونة صورة مكسورة للعبة بدون أغلفة.
 
