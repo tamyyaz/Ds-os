@@ -17,6 +17,9 @@ CHROME="${CHROME_BIN:-$(command -v google-chrome || command -v google-chrome-sta
 echo "python: $($PYTHON --version 2>&1)   chrome: $CHROME"
 
 # a fresh HOME with a fake Steam where the backend looks for it on Linux
+# keep finding packages installed with `pip install --user` (Pillow) after HOME is replaced
+PYTHONUSERBASE="$("$PYTHON" -m site --user-base)"
+export PYTHONUSERBASE
 HOME="$(mktemp -d)"
 export HOME
 mkdir -p "$HOME/.local/share"
