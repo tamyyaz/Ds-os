@@ -24,6 +24,7 @@ import fixture  # noqa: E402
 import heroic  # noqa: E402
 import lutris  # noqa: E402
 import server  # noqa: E402
+import settings  # noqa: E402
 import steam  # noqa: E402
 import store  # noqa: E402
 
@@ -187,6 +188,54 @@ class HeroicScan(unittest.TestCase):
             self.assertEqual(heroic.launch(runner, app)[0], False, (runner, app))
 
 
+class SettingsFile(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self._env = os.environ.get("DARKSHAM_SETTINGS"), os.environ.get("DARKSHAM_CC")
+        os.environ["DARKSHAM_SETTINGS"] = str(Path(self.tmp.name) / "sub" / "settings.json")
+        os.environ.pop("DARKSHAM_CC", None)
+
+    def tearDown(self):
+        for var, old in zip(("DARKSHAM_SETTINGS", "DARKSHAM_CC"), self._env):
+            if old is None:
+                os.environ.pop(var, None)
+            else:
+                os.environ[var] = old
+        self.tmp.cleanup()
+
+    def test_missing_file_gives_defaults(self):
+        self.assertEqual(settings.load(), {"region": "us", "sources": {"steam": True, "lutris": True, "heroic": True}})
+
+    def test_default_region_can_come_from_the_environment(self):
+        os.environ["DARKSHAM_CC"] = "DE"
+        self.assertEqual(settings.load()["region"], "de")
+        os.environ["DARKSHAM_CC"] = "zz"
+        self.assertEqual(settings.load()["region"], "us")
+
+    def test_update_persists_and_merges(self):
+        data, problems = settings.update({"region": "tr", "sources": {"heroic": False}})
+        self.assertEqual(problems, [])
+        self.assertEqual(data["region"], "tr")
+        data, _ = settings.update({"sources": {"steam": False}})
+        again = settings.load()
+        self.assertEqual((again["region"], again["sources"]), ("tr", {"steam": False, "lutris": True, "heroic": False}))
+
+    def test_a_bad_patch_saves_nothing(self):
+        settings.update({"region": "tr"})
+        data, problems = settings.update({"region": "gb", "bogus": 1})
+        self.assertTrue(problems)
+        self.assertEqual(settings.load()["region"], "tr")
+
+    def test_hand_edited_garbage_falls_back_to_defaults(self):
+        p = settings.path()
+        p.parent.mkdir(parents=True)
+        p.write_text("{ not json")
+        self.assertEqual(settings.load()["region"], "us")
+        p.write_text(json.dumps({"region": "moon", "sources": {"steam": "yes", "lutris": False}, "extra": 1}))
+        data = settings.load()
+        self.assertEqual((data["region"], data["sources"]), ("us", {"steam": True, "lutris": False, "heroic": True}))
+
+
 class ServerProtections(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -194,6 +243,8 @@ class ServerProtections(unittest.TestCase):
         cls.steam_dir = fixture.build(cls.tmp.name)
         cls.lutris_dir = fixture.build_lutris(cls.tmp.name)
         cls.heroic_dir = fixture.build_heroic(cls.tmp.name)
+        cls._senv, cls._cc = os.environ.get("DARKSHAM_SETTINGS"), store.CC
+        os.environ["DARKSHAM_SETTINGS"] = str(Path(cls.tmp.name) / "settings.json")
         cls._env = os.environ.get("DARKSHAM_LUTRIS")
         cls._henv = os.environ.get("DARKSHAM_HEROIC")
         os.environ["DARKSHAM_LUTRIS"] = str(cls.lutris_dir)
@@ -216,7 +267,8 @@ class ServerProtections(unittest.TestCase):
     def tearDownClass(cls):
         cls.srv.shutdown()
         steam.find_steam, steam.launch, steam.open_store, lutris.launch, heroic.launch = cls._find, cls._launch, cls._open, cls._llaunch, cls._hlaunch
-        for var, old in (("DARKSHAM_LUTRIS", cls._env), ("DARKSHAM_HEROIC", cls._henv)):
+        store.CC = cls._cc
+        for var, old in (("DARKSHAM_LUTRIS", cls._env), ("DARKSHAM_HEROIC", cls._henv), ("DARKSHAM_SETTINGS", cls._senv)):
             if old is None:
                 os.environ.pop(var, None)
             else:
@@ -316,6 +368,71 @@ class ServerProtections(unittest.TestCase):
         self.assertEqual(self.heroic_started[n:], [("gog", "1207658930"), ("legendary", "EpicApp1"), ("nile", "amzn1.adg.abc")])
         self.assertEqual(self.post("/api/launch", {"id": "heroic:gog:1207658930"}, token=False)[0], 403)
         self.assertEqual(len(self.heroic_started), n + 3)
+
+    # ---- settings
+    def settings(self):
+        return json.loads(self.req("/api/settings")[1])
+
+    def test_settings_defaults_and_what_was_found(self):
+        s = self.settings()
+        self.assertEqual(s["region"], "us")
+        self.assertEqual({k: v["enabled"] for k, v in s["sources"].items()}, {"steam": True, "lutris": True, "heroic": True})
+        self.assertEqual({k: v["found"] for k, v in s["sources"].items()}, {"steam": 3, "lutris": 2, "heroic": 3})
+        self.assertIn("sa", s["regions"])
+
+    def test_settings_changes_need_the_token_and_valid_values(self):
+        before = self.settings()
+        self.assertEqual(self.post("/api/settings", {"region": "sa"}, token=False)[0], 403)
+        self.assertEqual(self.post("/api/settings", {"region": "sa"}, headers={"Origin": "https://evil.example"})[0], 403)
+        for bad in ({"region": "xx"}, {"region": "us; rm -rf"}, {"region": 5}, {"region": None}, {"colour": "red"},
+                    {"sources": {"epic": False}}, {"sources": {"steam": "no"}}, {"sources": []}, [], "region"):
+            self.assertEqual(self.post("/api/settings", bad)[0], 400, bad)
+        self.assertEqual(self.settings(), before, "a refused change must not change anything")
+
+    def test_valid_settings_are_saved_and_applied(self):
+        code, body, _ = self.post("/api/settings", {"region": "sa"})
+        self.assertEqual(code, 200)
+        self.assertEqual(json.loads(body)["region"], "sa")
+        self.assertEqual(self.settings()["region"], "sa")
+        self.assertEqual(store.CC, "sa")
+        self.assertEqual(json.loads(Path(os.environ["DARKSHAM_SETTINGS"]).read_text())["region"], "sa")
+        self.post("/api/settings", {"region": "us"})
+        self.assertEqual(store.CC, "us")
+
+    def test_disabling_a_source_hides_its_games_and_refuses_its_launch(self):
+        n = len(self.lutris_started)
+        self.assertEqual(self.post("/api/settings", {"sources": {"lutris": False}})[0], 200)
+        try:
+            ids = [g["id"] for g in json.loads(self.req("/api/library")[1])["games"]]
+            self.assertFalse([i for i in ids if i.startswith("lutris:")])
+            self.assertIn("steam:1001", ids)
+            self.assertEqual(self.post("/api/launch", {"id": "lutris:5"})[0], 404)
+            self.assertEqual(len(self.lutris_started), n)
+            self.assertEqual(self.settings()["sources"]["lutris"]["found"], 2, "the count shows what exists even when hidden")
+        finally:
+            self.post("/api/settings", {"sources": {"lutris": True}})
+        self.assertIn("lutris:5", [g["id"] for g in json.loads(self.req("/api/library")[1])["games"]])
+
+    def test_clear_cache_only_removes_cache_files(self):
+        root = Path(self.tmp.name) / "cache"
+        (root / "json").mkdir(parents=True)
+        (root / "img").mkdir()
+        for name in ("json/a.json", "json/b.json", "img/c", "img/c.type"):
+            (root / name).write_text("x")
+        (root / "json" / "sub").mkdir()
+        (root / "json" / "sub" / "keep-inside").write_text("x")
+        (root / "keep.txt").write_text("x")
+        old = store.ROOT
+        store.ROOT = root
+        try:
+            self.assertEqual(self.post("/api/settings/clear-cache", {}, token=False)[0], 403)
+            self.assertTrue((root / "json" / "a.json").exists())
+            code, body, _ = self.post("/api/settings/clear-cache", {})
+        finally:
+            store.ROOT = old
+        self.assertEqual((code, json.loads(body)["removed"]), (200, 4))
+        self.assertTrue((root / "keep.txt").exists() and (root / "json" / "sub" / "keep-inside").exists())
+        self.assertFalse((root / "json" / "a.json").exists())
 
     def test_store_open_is_protected_like_launch(self):
         n = len(self.opened)

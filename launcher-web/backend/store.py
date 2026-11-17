@@ -150,6 +150,20 @@ def image(url):
     return data, ctype
 
 
+def clear_cache():
+    """Delete the cached store lists, details and images. Only plain files directly inside the two cache folders. Returns how many."""
+    removed = 0
+    for sub in ("json", "img"):
+        for f in (ROOT / sub).glob("*"):
+            try:
+                if f.is_file():
+                    f.unlink()
+                    removed += 1
+            except OSError:
+                pass
+    return removed
+
+
 def art(appid, kind):
     """Cover / hero / logo / header for an app id, trying the fallbacks in ART."""
     for name in ART.get(kind, []):

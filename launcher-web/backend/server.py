@@ -22,11 +22,13 @@ from urllib.parse import parse_qs, urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import heroic  # noqa: E402
 import lutris  # noqa: E402
+import settings  # noqa: E402
 import steam  # noqa: E402
 import store  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 TOKEN = secrets.token_urlsafe(24)
+VERSION = "0.1"
 STATIC_DIRS = {"css", "js", "fonts", "assets"}
 ID_RE = re.compile(r"^(?:(steam|lutris):(\d{1,12})|heroic:(legendary|gog|nile):([A-Za-z0-9_.\-]{1,64}))$")
 mimetypes.add_type("font/ttf", ".ttf")
@@ -39,11 +41,19 @@ _games = []
 def library():
     global _games
     with _lock:
-        found = steam.scan() + lutris.scan() + heroic.scan()
+        on = settings.load()["sources"]
+        found = (steam.scan() if on["steam"] else []) + (lutris.scan() if on["lutris"] else []) + (heroic.scan() if on["heroic"] else [])
         for g in found:  # one key per game for art URLs: steam-730, lutris-5, heroic-legendary-<app>
             g.setdefault("key", "%s-%s" % (g["source"], g["appid"]))
         _games = sorted(found, key=lambda g: -g["last_played"])
         return _games
+
+
+def settings_payload():
+    s = settings.load()
+    found = {"steam": len(steam.scan()), "lutris": len(lutris.scan()), "heroic": len(heroic.scan())}
+    return {"region": s["region"], "regions": settings.REGIONS, "version": VERSION,
+            "sources": {n: {"enabled": s["sources"][n], "found": found[n]} for n in settings.SOURCES}}
 
 
 def public(g):
@@ -96,6 +106,8 @@ class Handler(BaseHTTPRequestHandler):
             html = (ROOT / "index.html").read_text(encoding="utf-8")
             html = html.replace("<!--DARKSHAM_TOKEN-->", '<script>window.DARKSHAM={token:"%s"};</script>' % TOKEN)
             return self._send(200, html, "text/html; charset=utf-8", {"Cache-Control": "no-store"})
+        if path == "/api/settings":
+            return self._send(200, settings_payload(), extra={"Cache-Control": "no-store"})
         if path == "/api/library":
             return self._send(200, {"games": [public(g) for g in library()]}, extra={"Cache-Control": "no-store"})
         q = parse_qs(urlparse(self.path).query)
@@ -136,7 +148,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return self._send(403, {"error": "bad host"})
         route = urlparse(self.path).path
-        if route not in ("/api/launch", "/api/store/open"):
+        if route not in ("/api/launch", "/api/store/open", "/api/settings", "/api/settings/clear-cache"):
             return self._send(404, {"error": "not found"})
         origin = self.headers.get("Origin")
         if origin and urlparse(origin).hostname not in ("127.0.0.1", "localhost"):
@@ -148,6 +160,14 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(min(n, 4096)) or b"{}")
         except ValueError:
             return self._send(400, {"error": "bad json"})
+        if route == "/api/settings":
+            data, problems = settings.update(body)
+            if problems:
+                return self._send(400, {"ok": False, "problems": problems})
+            store.CC = data["region"]
+            return self._send(200, dict(settings_payload(), ok=True))
+        if route == "/api/settings/clear-cache":
+            return self._send(200, {"ok": True, "removed": store.clear_cache()})
         if route == "/api/store/open":
             appid = str(body.get("appid", ""))
             if not appid.isdigit() or len(appid) > 12:
@@ -172,6 +192,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    store.CC = settings.load()["region"]
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--open", action="store_true", help="open the UI in the default browser")

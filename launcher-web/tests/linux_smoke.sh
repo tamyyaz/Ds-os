@@ -66,5 +66,6 @@ shot profile  "lang=ar&tab=profile"
 shot games-noart "lang=en&select=3"   # a game with no art at all must not show a broken image
 shot games-lutris "lang=en&select=1"   # a Lutris game next to the Steam ones
 shot games-heroic "lang=en&select=6"   # an Epic game from Heroic (no art: generated look)
-"$PYTHON" "$HERE/check_png.py" "$OUT/games-ar.png" "$OUT/games-en.png" "$OUT/profile.png" "$OUT/games-noart.png" "$OUT/games-lutris.png" "$OUT/games-heroic.png"
+shot settings "lang=ar&tab=settings&row=4"   # the settings page with the source toggles
+"$PYTHON" "$HERE/check_png.py" "$OUT/games-ar.png" "$OUT/games-en.png" "$OUT/profile.png" "$OUT/games-noart.png" "$OUT/games-lutris.png" "$OUT/games-heroic.png" "$OUT/settings.png"
 echo "ALL OK"

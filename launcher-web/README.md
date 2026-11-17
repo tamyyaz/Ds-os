@@ -30,6 +30,13 @@ python3 backend/server.py --open      # بيشغّل الـbackend على 127.0.
 - خيارات بالرابط للتجربة: `?lang=en &select=2 &tab=profile &static=1 &auto=1 &busy=1 &hints=1`.
 - المفاتيح: ← → تنقل، Enter تشغيل، Q/E تبديل القسم، F2 لغة، F1 تلميحات. اليد: D-pad أو العصا، A، LB/RB، Y.
 
+## الإعدادات (تبويب جديد)
+- **اللغة** (عربي/إنجليزي)، **منطقة أسعار المتجر** (US وGB وDE وSA وAE وEG وTR وCA وAU وBR وIN)، **تفعيل/تعطيل مصادر الألعاب** (Steam وLutris وHeroic، مع عدد الألعاب اللي لقاها كل مصدر حتى لو مخفي)، و**مسح كاش المتجر**.
+- التنقل: ↑↓ بين الصفوف، ←→ لتغيير القيمة، Enter للتطبيق. بالجويستيك: D-pad وA.
+- بتنحفظ بملف `~/.config/darksham/settings.json` (`%APPDATA%\darksham` بويندوز). الباك اند بيقبل **مفاتيح وقيم معروفة بس** (`region` من قائمة، و`sources` بوليان لأسماء المصادر)، وأي شي ثاني بيرفضه بـ400 وما بيحفظ شي. التغيير بيحتاج التوكن مثل التشغيل.
+- مسح الكاش بيحذف بس ملفات كاش المتجر (قوائم، تفاصيل، صور) الموجودة مباشرة بمجلديه، مو أي شي ثاني.
+- اللغة بتنحفظ بالمتصفح (localStorage) مو بالسيرفر.
+
 ## مصادر الألعاب
 - **Steam**: مكتبات Steam المثبّتة (أسماء، ساعات، أغلفة، شعارات). التشغيل عبر `steam://rungameid/<id>`.
 - **Lutris** (جديد): بيقرأ قاعدة بيانات Lutris (`~/.local/share/lutris/pga.db`، أو نسخة Flatpak `~/.var/app/net.lutris.Lutris/...`) **بوضع القراءة فقط**، والألعاب المثبّتة بس، مع الأغلفة (`coverart/` ثم `banners/`). التشغيل عبر `lutris lutris:rungameid/<id>`. الصيغ من كود Lutris نفسه، وانفحصت على قاعدة بيانات وهمية. **ما انجرّب مع Lutris حقيقي.**
@@ -56,10 +63,10 @@ python3 backend/server.py --open      # بيشغّل الـbackend على 127.0.
 
 ## الاختبارات
 ```bash
-python -m unittest discover -s tests -v          # 35 اختبار للباك اند (Steam وLutris وHeroic وهميين، حمايات السيرفر، المتجر)
+python -m unittest discover -s tests -v          # 45 اختبار للباك اند (Steam وLutris وHeroic وهميين، حمايات السيرفر، المتجر)
 bash tests/linux_smoke.sh                         # wrapper حقيقي + Chrome حقيقي على Steam وهمي (3-4 لقطات)
 ```
-- **على لينكس حقيقي (GitHub Actions، `launcher-tests.yml`)**: الاختبارات الـ35، وshellcheck، وفحص ملفات `.desktop`، وتشغيل `darksham-launcher` مع Chrome حقيقي على مكتبة Steam وهمية (أغلفة مولّدة، ما في ألعاب حقيقية). نجحت. بتتشغّل يدوياً (`gh workflow run launcher-tests.yml`) أو لما يتغيّر اللانشر بدون `[skip ci]`.
+- **على لينكس حقيقي (GitHub Actions، `launcher-tests.yml`)**: الاختبارات الـ45، وshellcheck، وفحص ملفات `.desktop`، وتشغيل `darksham-launcher` مع Chrome حقيقي على مكتبة Steam وهمية (أغلفة مولّدة، ما في ألعاب حقيقية). نجحت. بتتشغّل يدوياً (`gh workflow run launcher-tests.yml`) أو لما يتغيّر اللانشر بدون `[skip ci]`.
 - **هاد لا يغطي**: بناء/إقلاع صورة النظام، gamescope، Steam الحقيقي، يد تحكم، أو تعريفات.
 - الاختبارات لقت مشكلتين حقيقيتين وانصلحوا: تجاوز مجلد الملفات الثابتة (`/css/../backend/server.py`)، وأيقونة صورة مكسورة للعبة بدون أغلفة.
 
