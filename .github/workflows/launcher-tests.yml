@@ -72,7 +72,7 @@ jobs:
 
       - name: Keep the screenshots (generated art only)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: launcher-screenshots
           path: ${{ runner.temp }}/launcher-smoke/*.png
